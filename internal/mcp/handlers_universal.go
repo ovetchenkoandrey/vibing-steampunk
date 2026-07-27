@@ -28,6 +28,8 @@ SAP(action="edit", target="CLAS ZCL_TEST", params={"source": "..."})  — auto l
 SAP(action="edit", target="CLAS ZCL_TEST", params={"method": "X", "source": "METHOD x.\nENDMETHOD."})
 SAP(action="search", target="ZCL_*")
 SAP(action="analyze", params={"type": "check_boundaries", "package": "$ZDEV"})
+SAP(action="system", params={"type": "list_transports"})  — transports live under action="system"
+SAP(action="system", params={"type": "list_transports", "status": "released"})  — older, released requests
 SAP(action="help") — full docs; SAP(action="help", target="tips") — best practices`),
 		mcp.WithString("action",
 			mcp.Required(),
