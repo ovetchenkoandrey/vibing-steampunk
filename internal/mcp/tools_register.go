@@ -1797,9 +1797,15 @@ func (s *Server) registerAMDPTools(shouldRegister func(string) bool) {
 func (s *Server) registerTransportTools(shouldRegister func(string) bool) {
 	if shouldRegister("ListTransports") {
 		s.mcpServer.AddTool(mcp.NewTool("ListTransports",
-			mcp.WithDescription("List transport requests. Returns modifiable transports for a user. Requires --enable-transports OR --allow-transportable-edits flag."),
+			mcp.WithDescription("List transport requests. Returns modifiable transports by default; use status to include released ones. Requires --enable-transports OR --allow-transportable-edits flag."),
 			mcp.WithString("user",
 				mcp.Description("Username to list transports for (default: current user, '*' for all users)"),
+			),
+			mcp.WithString("status",
+				mcp.Description("Status filter: 'modifiable' (default), 'released' (older, already released requests) or 'all'. Anything other than the default is read from E070/E07T and needs free SQL enabled."),
+			),
+			mcp.WithNumber("max",
+				mcp.Description("Maximum number of rows for the E070 query (default: 100)"),
 			),
 		), s.handleListTransports)
 	}

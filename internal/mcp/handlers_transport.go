@@ -207,14 +207,23 @@ func (s *Server) handleListTransports(ctx context.Context, request mcp.CallToolR
 	}
 
 	user, _ := request.GetArguments()["user"].(string)
+	status, _ := request.GetArguments()["status"].(string)
 
-	transports, err := s.adtClient.ListTransports(ctx, user)
+	limit := 0
+	if max, ok := getFloatParam(request.GetArguments(), "max"); ok {
+		limit = int(max)
+	}
+
+	transports, err := s.adtClient.ListTransportsWithStatus(ctx, user, status, limit)
 	if err != nil {
 		return newToolResultError(fmt.Sprintf("ListTransports failed: %v", err)), nil
 	}
 
 	if len(transports) == 0 {
-		return mcp.NewToolResultText("No modifiable transports found."), nil
+		if status == "" {
+			return mcp.NewToolResultText("No modifiable transports found. Use status=\"released\" or status=\"all\" to include released requests."), nil
+		}
+		return mcp.NewToolResultText(fmt.Sprintf("No transports found with status %q.", status)), nil
 	}
 
 	jsonBytes, err := json.MarshalIndent(transports, "", "  ")

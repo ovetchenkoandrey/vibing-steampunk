@@ -420,9 +420,28 @@ type ReleaseTransportOptions struct {
 	SkipATC     bool
 }
 
-// ListTransports returns transport requests for a user.
+// Transport status filters accepted by ListTransportsWithStatus.
+const (
+	TransportStatusModifiable = "modifiable" // TRSTATUS D
+	TransportStatusReleased   = "released"   // TRSTATUS R and N
+	TransportStatusAll        = "all"        // no status restriction
+)
+
+// defaultTransportListLimit caps the E070 fallback query when no limit is given.
+const defaultTransportListLimit = 100
+
+// ListTransports returns modifiable transport requests for a user.
 // First tries ADT API, falls back to E070/E07T table query if ADT returns empty.
 func (c *Client) ListTransports(ctx context.Context, user string) ([]TransportSummary, error) {
+	return c.ListTransportsWithStatus(ctx, user, "", 0)
+}
+
+// ListTransportsWithStatus returns transport requests for a user, filtered by status.
+//
+// An empty status keeps the historic behaviour: ADT API first, E070/E07T fallback when
+// ADT returns nothing. Any explicit status goes straight to E070/E07T, because the ADT
+// CTS API only ever reports modifiable requests — released ones are invisible to it.
+func (c *Client) ListTransportsWithStatus(ctx context.Context, user, status string, limit int) ([]TransportSummary, error) {
 	// Safety check
 	if err := c.config.Safety.CheckTransport("", "ListTransports", false); err != nil {
 		return nil, err
@@ -430,6 +449,19 @@ func (c *Client) ListTransports(ctx context.Context, user string) ([]TransportSu
 
 	if user == "" {
 		user = c.config.Username
+	}
+
+	status = strings.ToLower(strings.TrimSpace(status))
+	switch status {
+	case "", TransportStatusModifiable, TransportStatusReleased, TransportStatusAll:
+	default:
+		return nil, fmt.Errorf("unknown transport status %q (use %q, %q or %q)",
+			status, TransportStatusModifiable, TransportStatusReleased, TransportStatusAll)
+	}
+
+	// Released requests are only reachable through E070 — skip the ADT API entirely.
+	if status != "" {
+		return c.listTransportsViaSQL(ctx, user, status, limit)
 	}
 
 	// Try ADT API first
@@ -454,28 +486,53 @@ func (c *Client) ListTransports(ctx context.Context, user string) ([]TransportSu
 
 	// Fallback: query E070/E07T tables directly
 	// This works on systems without configured transport routes (sandboxes)
-	return c.listTransportsViaSQL(ctx, user)
+	return c.listTransportsViaSQL(ctx, user, TransportStatusModifiable, limit)
 }
 
-// listTransportsViaSQL queries E070/E07T tables to get modifiable transports.
-// Used as fallback when ADT API returns empty (common on sandbox systems).
-func (c *Client) listTransportsViaSQL(ctx context.Context, user string) ([]TransportSummary, error) {
-	// Query modifiable workbench requests (K) for the user
+// listTransportsViaSQL queries E070/E07T tables to get transports in the given status.
+// Used as fallback when ADT API returns empty (common on sandbox systems), and as the
+// only route for released requests.
+func (c *Client) listTransportsViaSQL(ctx context.Context, user, status string, limit int) ([]TransportSummary, error) {
+	// The fallback rides on RunQuery, so an explicit --block-free-sql makes it impossible.
+	// Say so instead of reporting an empty transport list.
+	if c.config.Safety.BlockFreeSQL {
+		return nil, fmt.Errorf("the ADT CTS API returned no transports and the E070 fallback needs free SQL, " +
+			"which is blocked by --block-free-sql / SAP_BLOCK_FREE_SQL")
+	}
+
 	// TRFUNCTION: K=Workbench request, W=Customizing request, S=Task
 	// TRSTATUS: D=Modifiable, R=Released, N=Released (import started)
+	var statusFilter string
+	switch status {
+	case TransportStatusReleased:
+		statusFilter = "\n\t\tAND e070~TRSTATUS IN ('R', 'N')"
+	case TransportStatusAll:
+		statusFilter = ""
+	default:
+		statusFilter = "\n\t\tAND e070~TRSTATUS = 'D'"
+	}
+
+	// '*' means every user — drop the owner restriction instead of matching a literal star.
+	userFilter := "e070~AS4USER = '" + strings.ToUpper(user) + "'"
+	if user == "*" {
+		userFilter = "e070~AS4USER <> ''"
+	}
+
 	query := `SELECT e070~TRKORR, e070~TRFUNCTION, e070~TRSTATUS, e070~TARSYSTEM,
 		e070~AS4USER, e070~AS4DATE, e070~AS4TIME, e07t~AS4TEXT
 		FROM E070 AS e070
 		LEFT OUTER JOIN E07T AS e07t ON e070~TRKORR = e07t~TRKORR AND e07t~LANGU = 'E'
-		WHERE e070~AS4USER = '` + strings.ToUpper(user) + `'
-		AND e070~TRSTATUS = 'D'
+		WHERE ` + userFilter + statusFilter + `
 		AND e070~TRFUNCTION IN ('K', 'W')
 		ORDER BY e070~TRKORR DESCENDING`
 
-	result, err := c.RunQuery(ctx, query, 100)
+	if limit <= 0 {
+		limit = defaultTransportListLimit
+	}
+
+	result, err := c.RunQuery(ctx, query, limit)
 	if err != nil {
-		// If SQL query fails, return empty list (not an error)
-		return []TransportSummary{}, nil
+		return nil, fmt.Errorf("E070 transport fallback query failed: %w", err)
 	}
 
 	var transports []TransportSummary

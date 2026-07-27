@@ -264,7 +264,9 @@ Info:
   SAP(action="system", target="FEATURES")
 
 Transports:
-  SAP(action="system", params={"type": "list_transports"})
+  SAP(action="system", params={"type": "list_transports"})  — modifiable only
+  SAP(action="system", params={"type": "list_transports", "status": "released"})  — older, released requests
+  SAP(action="system", params={"type": "list_transports", "status": "all", "max": 200})
   SAP(action="system", params={"type": "get_transport", "transport": "A4HK900001"})
   SAP(action="system", params={"type": "create_transport", "description": "...", "package": "$TMP"})
   SAP(action="system", params={"type": "release_transport", "transport": "A4HK900001"})
