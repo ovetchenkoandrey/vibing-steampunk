@@ -1009,14 +1009,14 @@ CLASS zcl_vsp_debug_service IMPLEMENTATION.
   METHOD extract_param.
     DATA lv_pattern TYPE string.
     lv_pattern = |"{ iv_name }"\\s*:\\s*"([^"]*)"|.
-    FIND PCRE lv_pattern IN iv_params SUBMATCHES rv_value.
+    FIND REGEX lv_pattern IN iv_params SUBMATCHES rv_value.
   ENDMETHOD.
 
   METHOD extract_param_int.
     DATA lv_pattern TYPE string.
     DATA lv_str TYPE string.
     lv_pattern = |"{ iv_name }"\\s*:\\s*(\\d+)|.
-    FIND PCRE lv_pattern IN iv_params SUBMATCHES lv_str.
+    FIND REGEX lv_pattern IN iv_params SUBMATCHES lv_str.
     IF sy-subrc = 0.
       rv_value = lv_str.
     ENDIF.
