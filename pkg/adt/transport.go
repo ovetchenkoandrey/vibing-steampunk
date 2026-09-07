@@ -436,7 +436,7 @@ func (c *Client) ListTransports(ctx context.Context, user string) ([]TransportSu
 	resp, err := c.transport.Request(ctx, "/sap/bc/adt/cts/transportrequests", &RequestOptions{
 		Method: http.MethodGet,
 		Query:  map[string][]string{"user": {strings.ToUpper(user)}},
-		Accept: acceptTransportOrganizerTreeV1,
+		Accept: acceptTransportOrganizerTreeV1 + ", " + acceptTransportOrganizerV1 + ";q=0.9",
 	})
 	if err != nil {
 		return nil, fmt.Errorf("listing transports: %w", err)
