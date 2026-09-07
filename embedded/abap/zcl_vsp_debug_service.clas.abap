@@ -222,9 +222,15 @@ CLASS zcl_vsp_debug_service IMPLEMENTATION.
     ENDIF.
 
     DATA(lo_bp_services) = get_static_bp_services( ).
+    " A non-blank ide_id is required: external breakpoints registered under a
+    " blank ide_id are created and reported active, but the ABAP runtime never
+    " honors them at execution time (verified on 7.52 — both line and statement
+    " breakpoints silently never fire). ADT's own breakpoint path always sends
+    " ideId="vsp"; mirror that here.
     lo_bp_services->set_external_bp_context_user(
       i_ide_user     = mv_debug_user
       i_request_user = mv_debug_user
+      i_ide_id       = 'VSP'
     ).
     mv_bp_context_set = abap_true.
   ENDMETHOD.
