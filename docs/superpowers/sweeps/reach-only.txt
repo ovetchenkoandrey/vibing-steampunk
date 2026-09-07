@@ -1,0 +1,8 @@
+Every advertised capability is registered and routed.
+
+Coverage
+
+  280 advertised names checked for registration and routing
+  build: v2.54.0-fix406 (commit 9b8789d, built 2026-08-28)
+  This pass cannot tell whether a reachable capability answers.
+  Run it against a system for that.
