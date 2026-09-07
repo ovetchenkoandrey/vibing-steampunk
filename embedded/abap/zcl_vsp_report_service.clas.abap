@@ -11,6 +11,14 @@ CLASS zcl_vsp_report_service DEFINITION
       IMPORTING is_message         TYPE zif_vsp_service=>ty_message
       RETURNING VALUE(rs_response) TYPE zif_vsp_service=>ty_response.
 
+    METHODS handle_get_job_status
+      IMPORTING is_message         TYPE zif_vsp_service=>ty_message
+      RETURNING VALUE(rs_response) TYPE zif_vsp_service=>ty_response.
+
+    METHODS handle_get_spool_output
+      IMPORTING is_message         TYPE zif_vsp_service=>ty_message
+      RETURNING VALUE(rs_response) TYPE zif_vsp_service=>ty_response.
+
     METHODS handle_get_text_elements
       IMPORTING is_message         TYPE zif_vsp_service=>ty_message
       RETURNING VALUE(rs_response) TYPE zif_vsp_service=>ty_response.
@@ -29,9 +37,9 @@ CLASS zcl_vsp_report_service DEFINITION
       RETURNING VALUE(rv_value) TYPE string.
 
     METHODS extract_param_object
-      IMPORTING iv_params       TYPE string
-                iv_name         TYPE string
-      RETURNING VALUE(rv_json)  TYPE string.
+      IMPORTING iv_params      TYPE string
+                iv_name        TYPE string
+      RETURNING VALUE(rv_json) TYPE string.
 
     METHODS escape_json
       IMPORTING iv_string         TYPE string
@@ -56,6 +64,10 @@ CLASS zcl_vsp_report_service IMPLEMENTATION.
     CASE is_message-action.
       WHEN 'runReport'.
         rs_response = handle_run_report( is_message ).
+      WHEN 'getJobStatus'.
+        rs_response = handle_get_job_status( is_message ).
+      WHEN 'getSpoolOutput'.
+        rs_response = handle_get_spool_output( is_message ).
       WHEN 'getTextElements'.
         rs_response = handle_get_text_elements( is_message ).
       WHEN 'setTextElements'.
@@ -75,18 +87,17 @@ CLASS zcl_vsp_report_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD handle_run_report.
-    DATA: lt_rsparams  TYPE TABLE OF rsparams,
-          lr_data      TYPE REF TO data,
-          lv_start     TYPE timestampl,
-          lv_end       TYPE timestampl,
-          lv_runtime   TYPE i,
-          lv_report    TYPE progname,
-          lv_variant   TYPE variant.
+    " APC context forbids plain SUBMIT (RABAX: invalid statement in push channel).
+    " Run the report as a background job instead: JOB_OPEN -> SUBMIT VIA JOB -> JOB_CLOSE.
+    " The client polls getJobStatus and reads spool via getSpoolOutput.
+    DATA: lt_rsparams TYPE TABLE OF rsparams,
+          lv_report   TYPE progname,
+          lv_variant  TYPE variant,
+          lv_jobname  TYPE tbtcjob-jobname,
+          lv_jobcount TYPE tbtcjob-jobcount.
 
     DATA(lv_report_str) = extract_param( iv_params = is_message-params iv_name = 'report' ).
     DATA(lv_variant_str) = extract_param( iv_params = is_message-params iv_name = 'variant' ).
-    DATA(lv_capture) = extract_param( iv_params = is_message-params iv_name = 'capture_alv' ).
-    DATA(lv_max_str) = extract_param( iv_params = is_message-params iv_name = 'max_rows' ).
     DATA(lv_params_json) = extract_param_object( iv_params = is_message-params iv_name = 'params' ).
 
     IF lv_report_str IS INITIAL.
@@ -101,9 +112,6 @@ CLASS zcl_vsp_report_service IMPLEMENTATION.
       lv_variant = lv_variant_str.
     ENDIF.
 
-    DATA(lv_capture_alv) = COND abap_bool( WHEN lv_capture = 'false' THEN abap_false ELSE abap_true ).
-    DATA(lv_max_rows) = COND i( WHEN lv_max_str IS NOT INITIAL THEN CONV i( lv_max_str ) ELSE 1000 ).
-
     SELECT SINGLE name FROM trdir INTO @DATA(lv_exists) WHERE name = @lv_report.
     IF sy-subrc <> 0.
       rs_response = build_error( iv_id = is_message-id iv_code = 'REPORT_NOT_FOUND' iv_message = |Report { lv_report } not found| ).
@@ -115,7 +123,7 @@ CLASS zcl_vsp_report_service IMPLEMENTATION.
       WHILE lv_work CS '"'.
         DATA lv_pname TYPE string.
         DATA lv_pval TYPE string.
-        FIND PCRE '"([^"]+)"\s*:\s*"([^"]*)"' IN lv_work SUBMATCHES lv_pname lv_pval.
+        FIND REGEX '"([^"]+)"\s*:\s*"([^"]*)"' IN lv_work SUBMATCHES lv_pname lv_pval.
         IF sy-subrc = 0.
           TRANSLATE lv_pname TO UPPER CASE.
           DATA lv_selname TYPE rsscr_name.
@@ -140,124 +148,179 @@ CLASS zcl_vsp_report_service IMPLEMENTATION.
       ENDWHILE.
     ENDIF.
 
-    GET TIME STAMP FIELD lv_start.
+    lv_jobname = |ZVSP_{ lv_report }|.
+
+    CALL FUNCTION 'JOB_OPEN'
+      EXPORTING
+        jobname          = lv_jobname
+      IMPORTING
+        jobcount         = lv_jobcount
+      EXCEPTIONS
+        cant_create_job  = 1
+        invalid_job_data = 2
+        jobname_missing  = 3
+        OTHERS           = 4.
+    IF sy-subrc <> 0.
+      rs_response = build_error( iv_id = is_message-id iv_code = 'JOB_OPEN_ERROR' iv_message = |JOB_OPEN failed, subrc { sy-subrc }| ).
+      RETURN.
+    ENDIF.
+
+    " Any form of SUBMIT (even VIA JOB) is a forbidden statement inside an
+    " ABAP push channel session - the kernel raises RABAX. JOB_SUBMIT is a
+    " plain function call and passes. Trade-off: free parameters are not
+    " supported, selections must come from a variant.
+    IF lt_rsparams IS NOT INITIAL AND lv_variant IS INITIAL.
+      rs_response = build_error( iv_id = is_message-id iv_code = 'PARAMS_NOT_SUPPORTED' iv_message = 'Free parameters are not supported in APC context; create a variant and pass variant=...' ).
+      RETURN.
+    ENDIF.
+
+    CALL FUNCTION 'JOB_SUBMIT'
+      EXPORTING
+        authcknam               = sy-uname
+        jobname                 = lv_jobname
+        jobcount                = lv_jobcount
+        report                  = lv_report
+        variant                 = lv_variant
+      EXCEPTIONS
+        bad_priparams           = 1
+        bad_xpgflags            = 2
+        invalid_jobdata         = 3
+        jobname_missing         = 4
+        job_notex               = 5
+        job_submit_failed       = 6
+        lock_failed             = 7
+        program_missing         = 8
+        prog_abap_and_extpg_set = 9
+        OTHERS                  = 10.
+    IF sy-subrc <> 0.
+      rs_response = build_error( iv_id = is_message-id iv_code = 'JOB_SUBMIT_ERROR' iv_message = |JOB_SUBMIT failed, subrc { sy-subrc }| ).
+      RETURN.
+    ENDIF.
+
+    " Step 2: export step 1's spool to INDX so getSpoolOutput can read it
+    " from the APC session without forbidden statements.
+    CALL FUNCTION 'JOB_SUBMIT'
+      EXPORTING
+        authcknam = sy-uname
+        jobname   = lv_jobname
+        jobcount  = lv_jobcount
+        report    = 'ZVSP_SPOOL_XPRT'
+      EXCEPTIONS
+        OTHERS    = 1.
+    IF sy-subrc <> 0.
+      rs_response = build_error( iv_id = is_message-id iv_code = 'JOB_SUBMIT_ERROR' iv_message = |JOB_SUBMIT of spool export step failed, subrc { sy-subrc }| ).
+      RETURN.
+    ENDIF.
+
+    CALL FUNCTION 'JOB_CLOSE'
+      EXPORTING
+        jobname              = lv_jobname
+        jobcount             = lv_jobcount
+        strtimmed            = 'X'
+      EXCEPTIONS
+        cant_start_immediate = 1
+        invalid_startdate    = 2
+        jobname_missing      = 3
+        job_close_failed     = 4
+        job_nosteps          = 5
+        job_notex            = 6
+        lock_failed          = 7
+        invalid_target       = 8
+        OTHERS               = 9.
+    IF sy-subrc <> 0.
+      rs_response = build_error( iv_id = is_message-id iv_code = 'JOB_CLOSE_ERROR' iv_message = |JOB_CLOSE failed, subrc { sy-subrc }| ).
+      RETURN.
+    ENDIF.
 
     DATA(lv_o) = '{'.
     DATA(lv_c) = '}'.
-    DATA lv_json TYPE string.
-    DATA lv_alv_json TYPE string.
-    DATA lv_columns_json TYPE string.
-    DATA lv_total_rows TYPE i.
-    DATA lv_truncated TYPE abap_bool.
+    DATA(lv_json) = |{ lv_o }"status":"submitted","report":"{ lv_report }","jobname":"{ lv_jobname }","jobcount":"{ lv_jobcount }"{ lv_c }|.
+    rs_response = VALUE #( id = is_message-id success = abap_true data = lv_json ).
+  ENDMETHOD.
 
-    TRY.
-        IF lv_capture_alv = abap_true.
-          cl_salv_bs_runtime_info=>set(
-            display  = abap_false
-            metadata = abap_true
-            data     = abap_true ).
-        ENDIF.
+  METHOD handle_get_job_status.
+    DATA: lv_jobname  TYPE tbtcjob-jobname,
+          lv_jobcount TYPE tbtcjob-jobcount.
 
-        IF lv_variant IS NOT INITIAL.
-          SUBMIT (lv_report)
-            USING SELECTION-SET lv_variant
-            AND RETURN.
-        ELSEIF lt_rsparams IS NOT INITIAL.
-          SUBMIT (lv_report)
-            WITH SELECTION-TABLE lt_rsparams
-            AND RETURN.
-        ELSE.
-          SUBMIT (lv_report) AND RETURN.
-        ENDIF.
+    DATA(lv_jobname_str) = extract_param( iv_params = is_message-params iv_name = 'jobname' ).
+    DATA(lv_jobcount_str) = extract_param( iv_params = is_message-params iv_name = 'jobcount' ).
 
-        IF lv_capture_alv = abap_true.
-          TRY.
-              cl_salv_bs_runtime_info=>get_data_ref( IMPORTING r_data = lr_data ).
-
-              IF lr_data IS BOUND.
-                FIELD-SYMBOLS <lt_data> TYPE ANY TABLE.
-                ASSIGN lr_data->* TO <lt_data>.
-                lv_total_rows = lines( <lt_data> ).
-
-                DATA(lo_type) = cl_abap_typedescr=>describe_by_data_ref( lr_data ).
-                IF lo_type->kind = cl_abap_typedescr=>kind_table.
-                  DATA(lo_table) = CAST cl_abap_tabledescr( lo_type ).
-                  DATA(lo_struct) = CAST cl_abap_structdescr( lo_table->get_table_line_type( ) ).
-                  lv_columns_json = '['.
-                  DATA lv_col_first TYPE abap_bool VALUE abap_true.
-                  LOOP AT lo_struct->components INTO DATA(ls_comp).
-                    IF lv_col_first = abap_false.
-                      lv_columns_json = |{ lv_columns_json },|.
-                    ENDIF.
-                    lv_columns_json = |{ lv_columns_json }{ lv_o }"name":"{ ls_comp-name }","type":"{ ls_comp-type_kind }"{ lv_c }|.
-                    lv_col_first = abap_false.
-                  ENDLOOP.
-                  lv_columns_json = |{ lv_columns_json }]|.
-
-                  lv_alv_json = '['.
-                  DATA lv_row_first TYPE abap_bool VALUE abap_true.
-                  DATA lv_row_count TYPE i.
-                  LOOP AT <lt_data> ASSIGNING FIELD-SYMBOL(<ls_row>).
-                    lv_row_count = lv_row_count + 1.
-                    IF lv_row_count > lv_max_rows.
-                      lv_truncated = abap_true.
-                      EXIT.
-                    ENDIF.
-                    IF lv_row_first = abap_false.
-                      lv_alv_json = |{ lv_alv_json },|.
-                    ENDIF.
-                    lv_alv_json = |{ lv_alv_json }{ lv_o }|.
-                    DATA lv_fld_first TYPE abap_bool VALUE abap_true.
-                    LOOP AT lo_struct->components INTO ls_comp.
-                      IF lv_fld_first = abap_false.
-                        lv_alv_json = |{ lv_alv_json },|.
-                      ENDIF.
-                      ASSIGN COMPONENT ls_comp-name OF STRUCTURE <ls_row> TO FIELD-SYMBOL(<fv>).
-                      IF sy-subrc = 0.
-                        DATA lv_val TYPE string.
-                        TRY.
-                            lv_val = <fv>.
-                          CATCH cx_root.
-                            lv_val = ''.
-                        ENDTRY.
-                        lv_alv_json = |{ lv_alv_json }"{ ls_comp-name }":"{ escape_json( lv_val ) }"|.
-                      ENDIF.
-                      lv_fld_first = abap_false.
-                    ENDLOOP.
-                    lv_alv_json = |{ lv_alv_json }{ lv_c }|.
-                    lv_row_first = abap_false.
-                  ENDLOOP.
-                  lv_alv_json = |{ lv_alv_json }]|.
-                ENDIF.
-              ENDIF.
-            CATCH cx_salv_bs_sc_runtime_info.
-          ENDTRY.
-        ENDIF.
-
-      CATCH cx_root INTO DATA(lx_error).
-        IF lv_capture_alv = abap_true.
-          cl_salv_bs_runtime_info=>clear_all( ).
-        ENDIF.
-        rs_response = build_error( iv_id = is_message-id iv_code = 'SUBMIT_ERROR' iv_message = lx_error->get_text( ) ).
-        RETURN.
-    ENDTRY.
-
-    IF lv_capture_alv = abap_true.
-      cl_salv_bs_runtime_info=>clear_all( ).
+    IF lv_jobname_str IS INITIAL OR lv_jobcount_str IS INITIAL.
+      rs_response = build_error( iv_id = is_message-id iv_code = 'MISSING_PARAM' iv_message = 'Parameters jobname and jobcount are required' ).
+      RETURN.
     ENDIF.
 
-    GET TIME STAMP FIELD lv_end.
-    lv_runtime = cl_abap_tstmp=>subtract( tstmp1 = lv_end tstmp2 = lv_start ) * 1000.
+    TRANSLATE lv_jobname_str TO UPPER CASE.
+    lv_jobname = lv_jobname_str.
+    lv_jobcount = lv_jobcount_str.
 
-    DATA(lv_alv_captured) = COND string( WHEN lv_alv_json IS NOT INITIAL THEN 'true' ELSE 'false' ).
-    DATA(lv_trunc) = COND string( WHEN lv_truncated = abap_true THEN 'true' ELSE 'false' ).
-
-    lv_json = |{ lv_o }"status":"success","report":"{ lv_report }","runtime_ms":{ lv_runtime },"alv_captured":{ lv_alv_captured }|.
-    IF lv_alv_json IS NOT INITIAL.
-      lv_json = |{ lv_json },"columns":{ lv_columns_json },"rows":{ lv_alv_json },"total_rows":{ lv_total_rows },"truncated":{ lv_trunc }|.
+    SELECT SINGLE status FROM tbtco INTO @DATA(lv_status_raw)
+      WHERE jobname = @lv_jobname AND jobcount = @lv_jobcount.
+    IF sy-subrc <> 0.
+      rs_response = build_error( iv_id = is_message-id iv_code = 'JOB_NOT_FOUND' iv_message = |Job { lv_jobname }/{ lv_jobcount } not found| ).
+      RETURN.
     ENDIF.
-    lv_json = |{ lv_json }{ lv_c }|.
 
+    DATA lv_status TYPE string.
+    CASE lv_status_raw.
+      WHEN 'P'. lv_status = 'scheduled'.
+      WHEN 'S'. lv_status = 'scheduled'.
+      WHEN 'Y'. lv_status = 'ready'.
+      WHEN 'R'. lv_status = 'running'.
+      WHEN 'F'. lv_status = 'finished'.
+      WHEN 'A'. lv_status = 'aborted'.
+      WHEN OTHERS. lv_status = 'unknown'.
+    ENDCASE.
+
+    DATA lv_spools TYPE string.
+    SELECT listident FROM tbtcp INTO TABLE @DATA(lt_spool)
+      WHERE jobname = @lv_jobname AND jobcount = @lv_jobcount.
+    LOOP AT lt_spool INTO DATA(lv_listident).
+      DATA(lv_id) = CONV string( lv_listident ).
+      CONDENSE lv_id.
+      SHIFT lv_id LEFT DELETING LEADING '0'.
+      IF lv_id IS INITIAL.
+        CONTINUE.
+      ENDIF.
+      IF lv_spools IS NOT INITIAL.
+        lv_spools = |{ lv_spools },|.
+      ENDIF.
+      lv_spools = |{ lv_spools }"{ lv_id }"|.
+    ENDLOOP.
+
+    DATA(lv_o) = '{'.
+    DATA(lv_c) = '}'.
+    DATA(lv_json) = |{ lv_o }"jobname":"{ lv_jobname }","jobcount":"{ lv_jobcount }","status":"{ lv_status }","spool_ids":[{ lv_spools }]{ lv_c }|.
+    rs_response = VALUE #( id = is_message-id success = abap_true data = lv_json ).
+  ENDMETHOD.
+
+  METHOD handle_get_spool_output.
+    DATA(lv_spool_str) = extract_param( iv_params = is_message-params iv_name = 'spool_id' ).
+
+    IF lv_spool_str IS INITIAL.
+      rs_response = build_error( iv_id = is_message-id iv_code = 'MISSING_PARAM' iv_message = 'Parameter spool_id is required' ).
+      RETURN.
+    ENDIF.
+
+    " Spool functions RABAX inside an ABAP push channel (forbidden statements
+    " in SAPLSPOX; DESTINATION-RFC triggers an implicit DB commit, also
+    " forbidden). The job's second step ZVSP_SPOOL_XPRT exported the list to
+    " INDX; a plain database IMPORT is APC-safe.
+    DATA lv_output TYPE string.
+    DATA lv_key TYPE indx-srtfd.
+    lv_key = |VSPSPOOL_{ lv_spool_str }|.
+    IMPORT text = lv_output FROM DATABASE indx(zv) ID lv_key.
+    IF sy-subrc <> 0.
+      rs_response = build_error( iv_id = is_message-id iv_code = 'SPOOL_NOT_EXPORTED' iv_message = |No exported output for spool { lv_spool_str } - job may still be running or was submitted without the export step| ).
+      RETURN.
+    ENDIF.
+
+    DATA lt_split TYPE TABLE OF string.
+    SPLIT lv_output AT cl_abap_char_utilities=>newline INTO TABLE lt_split.
+    DATA(lv_lines) = lines( lt_split ).
+    DATA(lv_o) = '{'.
+    DATA(lv_c) = '}'.
+    DATA(lv_json) = |{ lv_o }"spool_id":"{ lv_spool_str }","lines":{ lv_lines },"output":"{ escape_json( lv_output ) }"{ lv_c }|.
     rs_response = VALUE #( id = is_message-id success = abap_true data = lv_json ).
   ENDMETHOD.
 
@@ -359,7 +422,7 @@ CLASS zcl_vsp_report_service IMPLEMENTATION.
       WHILE lv_work CS '"'.
         DATA lv_key TYPE string.
         DATA lv_val TYPE string.
-        FIND PCRE '"([^"]+)"\s*:\s*"([^"]*)"' IN lv_work SUBMATCHES lv_key lv_val.
+        FIND REGEX '"([^"]+)"\s*:\s*"([^"]*)"' IN lv_work SUBMATCHES lv_key lv_val.
         IF sy-subrc = 0.
           TRANSLATE lv_key TO UPPER CASE.
           REPLACE ALL OCCURRENCES OF '\"' IN lv_val WITH '"'.
@@ -394,7 +457,7 @@ CLASS zcl_vsp_report_service IMPLEMENTATION.
       lv_work = lv_sym_json.
       WHILE lv_work CS '"'.
         CLEAR: lv_key, lv_val.
-        FIND PCRE '"([^"]+)"\s*:\s*"([^"]*)"' IN lv_work SUBMATCHES lv_key lv_val.
+        FIND REGEX '"([^"]+)"\s*:\s*"([^"]*)"' IN lv_work SUBMATCHES lv_key lv_val.
         IF sy-subrc = 0.
           REPLACE ALL OCCURRENCES OF '\"' IN lv_val WITH '"'.
           REPLACE ALL OCCURRENCES OF '\\' IN lv_val WITH '\'.
@@ -433,8 +496,8 @@ CLASS zcl_vsp_report_service IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD handle_get_variants.
-    DATA: lt_varid   TYPE TABLE OF varid,
-          lv_report  TYPE progname.
+    DATA: lt_varid  TYPE TABLE OF varid,
+          lv_report TYPE progname.
 
     DATA(lv_report_str) = extract_param( iv_params = is_message-params iv_name = 'report' ).
 
@@ -481,7 +544,7 @@ CLASS zcl_vsp_report_service IMPLEMENTATION.
     IF sy-subrc = 0.
       DATA lv_rest TYPE string.
       lv_rest = iv_params+lv_pos.
-      FIND PCRE ':\s*"([^"]*)"' IN lv_rest SUBMATCHES rv_value.
+      FIND REGEX ':\s*"([^"]*)"' IN lv_rest SUBMATCHES rv_value.
     ENDIF.
   ENDMETHOD.
 
