@@ -347,9 +347,23 @@ success, oracle disagreed) / SILENT (errored but a change happened).
 - **LIAR count after oracle fix: 0.** On the write path the tool does not claim false success.
 - Oracle/tool note: ADT free SQL (`query SQL`) is whitespace-sensitive — `X = 'Y'` works, `X='Y'` → 400.
 
-## Transports on 7.52 — create/delete resolved (2026-09-08)
+## Transports on 7.52 — create/delete WORK (fixed 2026-09-08)
 
-- **delete_transport WORKS** via the tool's ADT path (`system delete_transport`). Verified: created COEK900408, deleted it, E070 row gone. (Never releasing — per policy.)
-- **create_transport via ADT is a dead end on 7.5x.** Read the standard handler `CL_CTS_ADT_TM_REST_RES_CONT->post`: it reads the action from URI attribute `traction` (not the body), and its CASE only handles `new_task` (add task to an existing request), `consistency_checks`, and `release_jobs` — there is **no create-request branch**. The tool sends `tm:useraction="newrequest"` in the body, so the handler reads an empty action → 400 "user action  is not supported". No body/query variant can fix it; the endpoint simply cannot create a request on this release.
-- **Working create** = classic CTS FM `TR_INSERT_REQUEST_WITH_TASKS` (all releases). It is not remote-enabled (gateway RFC refuses; the generic WS RFC caller cast-errors on its structured export), so it is called from a tiny local helper report `ZVSP_TR_CREATE` (embedded/abap) run via `debug RUN_REPORT`; the new TRKORR comes back in the spool. Verified end-to-end on 7.52.
-- Follow-up (not done): wire the Go `handleCreateTransport` to run the helper and parse the TRKORR instead of the ADT POST, and pass description/type as parameters (helper currently uses a fixed description). Delete already works as-is.
+The original conclusion "ADT cannot create requests on 7.5x" was WRONG — it came from
+reading only the `/cts/transportrequests` POST handler (CL_CTS_ADT_TM_REST_RES_CONT->post),
+which indeed only adds tasks / runs checks / releases and reads the action from the URI
+attribute `traction`. **Create lives on a different collection.** Confirmed against
+`abap-adt-api` and verified live on 7.52:
+
+- **create_transport — FIXED in the tool.** `CreateTransportV2` now POSTs to
+  **`/sap/bc/adt/cts/transports`** (not `/transportrequests`) with
+  `Content-Type: application/vnd.sap.as+xml;...dataname=com.sap.adt.CreateCorrectionRequest`,
+  `Accept: text/plain`, and an asx body `{OPERATION:"I", DEVCLASS, REQUEST_TEXT, REF}`.
+  Response is `/com.sap.cts/object_record/<TRKORR>`; the existing parser takes the last
+  segment. Verified end-to-end via the tool: create COEK900411 → E070 → delete → gone.
+- **delete_transport — works** via the tool's ADT path (unchanged).
+- **release** — untouched by policy.
+- This is the standard Eclipse-ADT create path, so it works on 7.50 too. The old FM helper
+  (ZVSP_TR_CREATE) is removed — not needed.
+- Follow-up: workbench vs customizing type is not expressed in the CreateCorrectionRequest
+  body (request type follows the package); add if customizing requests are ever needed.

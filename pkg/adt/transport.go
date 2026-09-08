@@ -736,35 +736,39 @@ func (c *Client) CreateTransportV2(ctx context.Context, opts CreateTransportOpti
 		return "", fmt.Errorf("package is required")
 	}
 
-	// Default to workbench request
-	reqType := "K"
-	if strings.ToLower(opts.Type) == "customizing" {
-		reqType = "W"
-	}
-
-	owner := strings.ToUpper(c.config.Username)
-
+	// ADT creates a request via POST /sap/bc/adt/cts/transports with a
+	// CreateCorrectionRequest body — NOT via /cts/transportrequests, whose POST
+	// handler (CL_CTS_ADT_TM_REST_RES_CONT) only adds tasks / runs checks /
+	// releases and reads the action from the URI attribute "traction", so a
+	// tm:useraction body always failed with "user action is not supported".
+	// This is the endpoint Eclipse ADT and abap-adt-api use. Verified on 7.52.
+	// (Request type follows the package; explicit workbench/customizing choice
+	// is not expressed here — a follow-up if customizing requests are needed.)
 	body := fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
-<tm:root xmlns:tm="http://www.sap.com/cts/adt/tm" tm:useraction="newrequest">
-  <tm:request tm:type="%s" tm:desc="%s" tm:target="" tm:cts_project="">
-    <tm:task tm:owner="%s"/>
-  </tm:request>
-</tm:root>`,
-		reqType,
-		escapeXMLAttr(opts.Description),
-		owner)
+<asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
+  <asx:values>
+    <DATA>
+      <OPERATION>I</OPERATION>
+      <DEVCLASS>%s</DEVCLASS>
+      <REQUEST_TEXT>%s</REQUEST_TEXT>
+      <REF></REF>
+    </DATA>
+  </asx:values>
+</asx:abap>`,
+		escapeXML(opts.Package),
+		escapeXML(opts.Description))
 
 	query := make(map[string][]string)
 	if opts.TransportLayer != "" {
 		query["transportLayer"] = []string{opts.TransportLayer}
 	}
 
-	resp, err := c.transport.Request(ctx, "/sap/bc/adt/cts/transportrequests", &RequestOptions{
+	resp, err := c.transport.Request(ctx, "/sap/bc/adt/cts/transports", &RequestOptions{
 		Method:      http.MethodPost,
 		Query:       query,
 		Body:        []byte(body),
-		ContentType: acceptTransportOrganizerV1,
-		Accept:      acceptTransportOrganizerV1,
+		ContentType: "application/vnd.sap.as+xml; charset=UTF-8; dataname=com.sap.adt.CreateCorrectionRequest",
+		Accept:      "text/plain",
 	})
 	if err != nil {
 		return "", fmt.Errorf("creating transport: %w", err)
