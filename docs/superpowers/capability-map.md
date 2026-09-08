@@ -310,3 +310,39 @@ Per-route row counts:
 | routeI18nAction | 8 | 2 |
 | routeRevisionsAction | 4 | 0 |
 | **total** | **214** | **77** |
+
+## Live findings — COE 7.52, 2026-09-08 (write sweep + author read sweep)
+
+Method: author's read-only `vsp sweep` + our `scripts/write_sweep.py` (oracle-verified writes in
+`$ZVSPTEST`/`ZVT_*`). Verdicts: OK / FAIL-honest (tool reported the failure) / LIAR (claimed
+success, oracle disagreed) / SILENT (errored but a change happened).
+
+### CRITICAL — fixed
+- **create-over-existing DELETED the pre-existing object (data loss).** `create OBJECT`/`create OBJECT CLAS/OC`
+  on a name that already exists: SAP returns 405 *already exists*; `reconcileFailedCreate`
+  (pkg/adt/crud.go) then probes "does it exist?", sees the caller's own object, mistakes it for a
+  partial create, and deletes it. Verified in isolation: class present → create-over → **class gone**.
+  **Fixed:** `isAlreadyExistsError` guard skips reconcile on 405/ExceptionResourceAlreadyExists.
+  Re-verified with the rebuilt binary: the object now survives. Rows #77/#77b.
+
+### Honest failures on 7.52 (tool reported them; NOT false success)
+| row | capability | status | cause |
+|---|---|---|---|
+| #79 | create TABL | 405 "errors in source" | DDIC table source rejected on 7.52 — needs the table-source format / `tables.v2` check |
+| #86 | edit type=write_program (new) | 404 on LOCK | workflow write_program locks before the object exists → cannot create a *new* program this way |
+| #147 | debug SET_TEXT_ELEMENTS | "one of …_texts required" | `text_symbols` dict not parsed — param-format mismatch (cf. `fields` wants a JSON *string*) |
+| #134 | system create_transport | 400 "user action is not supported" | create_transport rejected; also `params.type` is consumed as the route selector (static obs #7) |
+| #92 | system rename | 400 | rename of an existing class failed (needs error-body detail; not a cascade — clone did exist) |
+| #16 | edit INTF (upsert-create) | "Description is required" | interface upsert-create needs `description`; class upsert-create does not — inconsistent |
+| #150 | install_dummy_test | 405 on cleanup | self-test install path is messy (errors + 405); low priority |
+
+### From the author read sweep (read side)
+- **dead:** `i18n op=message_class_texts`. **broken:** `i18n op=text_pool`, `revisions op=list`.
+- timed-out (45s cap, not necessarily broken): `analyze type=callers`, `analyze type=call_graph`.
+- likely true-empty: `analyze type=list_traces`, `list_sql_traces`, `sql_trace_state`, `tr_boundaries`.
+
+### Not bugs (verified)
+- **#80 clone WORKS** — target created, TADIR+SEOCLASS present, source correctly renamed. The sweep's
+  first LIAR was our oracle (case-sensitive `source_has` vs upper-cased ADT source); oracle fixed.
+- **LIAR count after oracle fix: 0.** On the write path the tool does not claim false success.
+- Oracle/tool note: ADT free SQL (`query SQL`) is whitespace-sensitive — `X = 'Y'` works, `X='Y'` → 400.

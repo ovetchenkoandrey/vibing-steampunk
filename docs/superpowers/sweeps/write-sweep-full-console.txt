@@ -1,0 +1,41 @@
+sandbox=$ZVSPTEST prefix=ZVT_ dry_run=False only=*
+[OK         ] #78 devc.create                      sandbox already present
+[OK         ] #88 prog.create_and_activate         TRDIR+TADIR present, not inactive?
+[OK         ] #4 prog.read                         source round-trips?
+[OK         ] #15 prog.edit_upsert                 new source visible AND active?
+[OK         ] #71 prog.lock                        returns a lock_handle? (oracle: UPDATE below succeeds with it)
+[OK         ] #73 prog.update_source               inactive source updated?
+[OK         ] #67 prog.activate                    DWINACTIV empty after activate?
+[OK         ] #72 prog.unlock                      unlock accepted? (oracle: re-LOCK below succeeds)
+[OK         ] #71b prog.lock_for_delete            second LOCK after UNLOCK succeeds?
+[OK         ] #81 prog.delete                      TADIR+TRDIR gone?
+[OK         ] #77 clas.create_shell                TADIR present?
+[OK         ] #14 clas.edit_source                 source visible AND active?
+[FAIL-honest] #77b clas.create_over_existing       object SURVIVES a repeated create? (destructive-cleanup suspect)
+[FAIL-honest] #23 clas.editsource_replace          replacement visible AND active?
+[OK         ] #89 clas.create_with_tests           class present AND active?
+[OK         ] #89b clas.tests_run_green            unit test result reported? (verdict trusts tool; oracle = assertion inside test)
+[FAIL-honest] #16 intf.edit_upsert                 TADIR present AND active?
+[FAIL-honest] #79 tabl.create                      DD02L active row?
+[FAIL-honest] #80 clas.clone                       clone exists AND source renamed?
+[FAIL-honest] #86 wf.write_program                 TRDIR present AND active?
+[OK         ] #90 fileio.deploy_from_file          file content landed?
+[FAIL-honest] #92 fileio.rename                    old gone AND new present?
+[FAIL-honest] #147 report.set_text_elements        text visible via independent i18n route?
+[OK         ] #66 devtools.execute_abap            returns 'exec-ok'? (result text is the oracle; temp program must be gone)
+[OK         ] #66b devtools.execute_abap_cleanup   ZTEMP_EXEC* leftovers: 0
+[SILENT     ] #134 transport.create                see next row for the E070 oracle
+[FAIL-honest] #134b transport.exists_in_E070       no transport number parsed from reply
+[OK         ] #94 debug.set_statement_bp           registered?
+[OK         ] #96 debug.get_breakpoints            lists the FREE bp? (weak: same session; strong oracle = ZVSP_BP_PROBE report)
+[OK         ] #96b debug.bp_listed                 
+[OK         ] #98 debug.delete_all_bp              accepted?
+[OK         ] #98b debug.bp_gone                   FREE no longer listed? (run ZVSP_BP_CLEAR afterwards to be safe)
+[OK         ] #148 install.check_only              read-only plan answers?
+[SILENT     ] #150 install.dummy_test_create       both dummy objects REALLY present? (this is the path that lied)
+[FAIL-honest] #150b install.dummy_test_cleanup     dummy objects REALLY gone?
+[SILENT     ] #76 crud.recover_failed_create       nothing left behind for a clean name?
+--- cleanup (oracle-verified) ---
+sandbox clean
+
+report: C:\Claude\vsp-src\docs\superpowers\sweeps\write-sweep-20260908-100337.md  (36 probes)

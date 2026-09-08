@@ -1,0 +1,330 @@
+[
+  {
+    "id": "#78 devc.create",
+    "how": "create DEVC",
+    "claimed": true,
+    "oracle": true,
+    "verdict": "OK",
+    "note": "sandbox already present",
+    "tool_said": "(pre-existing)"
+  },
+  {
+    "id": "#88 prog.create_and_activate",
+    "how": "create PROGRAM",
+    "claimed": true,
+    "oracle": true,
+    "verdict": "OK",
+    "note": "TRDIR+TADIR present, not inactive?",
+    "tool_said": "{\n  \"success\": true,\n  \"programName\": \"ZVT_SWEEP_PROG\",\n  \"objectUrl\": \"/sap/bc/adt/programs/programs/ZVT_SWEEP_PROG\",\n  \"activation\": {\n    \"success\": true,\n    \"messages\": []\n  },\n  \"message\": \"Program created and activated successfully\"\n}"
+  },
+  {
+    "id": "#4 prog.read",
+    "how": "read PROG ZVT_SWEEP_PROG",
+    "claimed": true,
+    "oracle": true,
+    "verdict": "OK",
+    "note": "source round-trips?",
+    "tool_said": "REPORT zvt_sweep_prog.\r\nDATA lv TYPE i.\r\nlv = 1."
+  },
+  {
+    "id": "#15 prog.edit_upsert",
+    "how": "edit PROG (source)",
+    "claimed": true,
+    "oracle": true,
+    "verdict": "OK",
+    "note": "new source visible AND active?",
+    "tool_said": "{\n  \"success\": true,\n  \"objectType\": \"PROG\",\n  \"objectName\": \"ZVT_SWEEP_PROG\",\n  \"objectUrl\": \"/sap/bc/adt/programs/programs/ZVT_SWEEP_PROG\",\n  \"mode\": \"updated\",\n  \"activation\": {\n    \"success\": true,\n    \"messages\": []\n  },\n  \"message\": \"Program updated and activated successfully\"\n}"
+  },
+  {
+    "id": "#71 prog.lock",
+    "how": "edit LOCK",
+    "claimed": true,
+    "oracle": true,
+    "verdict": "OK",
+    "note": "returns a lock_handle? (oracle: UPDATE below succeeds with it)",
+    "tool_said": "{\n  \"lockHandle\": \"812A2406AD83515106FF41EC361BFE2CADFB40CB\",\n  \"isLocal\": true,\n  \"isLinkUp\": false\n}"
+  },
+  {
+    "id": "#73 prog.update_source",
+    "how": "edit UPDATE_SOURCE (with handle)",
+    "claimed": true,
+    "oracle": true,
+    "verdict": "OK",
+    "note": "inactive source updated?",
+    "tool_said": "Source updated successfully"
+  },
+  {
+    "id": "#67 prog.activate",
+    "how": "edit ACTIVATE",
+    "claimed": true,
+    "oracle": true,
+    "verdict": "OK",
+    "note": "DWINACTIV empty after activate?",
+    "tool_said": "{\n  \"success\": true,\n  \"messages\": []\n}"
+  },
+  {
+    "id": "#72 prog.unlock",
+    "how": "edit UNLOCK",
+    "claimed": true,
+    "oracle": true,
+    "verdict": "OK",
+    "note": "unlock accepted? (oracle: re-LOCK below succeeds)",
+    "tool_said": "Object unlocked successfully"
+  },
+  {
+    "id": "#71b prog.lock_for_delete",
+    "how": "edit LOCK",
+    "claimed": true,
+    "oracle": true,
+    "verdict": "OK",
+    "note": "second LOCK after UNLOCK succeeds?",
+    "tool_said": "{\n  \"lockHandle\": \"34012782BAF6EBB63D9A71088BEBA974FCD16029\",\n  \"isLocal\": true,\n  \"isLinkUp\": false\n}"
+  },
+  {
+    "id": "#81 prog.delete",
+    "how": "delete OBJECT (LOCK+handle)",
+    "claimed": true,
+    "oracle": true,
+    "verdict": "OK",
+    "note": "TADIR+TRDIR gone?",
+    "tool_said": "Object deleted successfully"
+  },
+  {
+    "id": "#77 clas.create_shell",
+    "how": "create OBJECT CLAS/OC",
+    "claimed": true,
+    "oracle": true,
+    "verdict": "OK",
+    "note": "TADIR present?",
+    "tool_said": "{\n  \"object_url\": \"/sap/bc/adt/oo/classes/ZVT_SWEEP_CLS\",\n  \"status\": \"created\"\n}"
+  },
+  {
+    "id": "#14 clas.edit_source",
+    "how": "edit CLAS (package=)",
+    "claimed": true,
+    "oracle": true,
+    "verdict": "OK",
+    "note": "source visible AND active?",
+    "tool_said": "{\n  \"success\": true,\n  \"objectType\": \"CLAS\",\n  \"objectName\": \"ZVT_SWEEP_CLS\",\n  \"objectUrl\": \"/sap/bc/adt/oo/classes/ZVT_SWEEP_CLS\",\n  \"mode\": \"updated\",\n  \"activation\": {\n    \"success\": true,\n    \"messages\": []\n  },\n  \"message\": \"Class updated and activated successfully\"\n}"
+  },
+  {
+    "id": "#77b clas.create_over_existing",
+    "how": "create OBJECT over existing",
+    "claimed": false,
+    "oracle": false,
+    "verdict": "FAIL-honest",
+    "note": "object SURVIVES a repeated create? (destructive-cleanup suspect)",
+    "tool_said": "Failed to create object: create failed after partial persistence (cleanup ok): creating object: ADT API error: status 405 at /sap/bc/adt/oo/classes: <?xml version=\"1.0\" encoding=\"utf-8\"?><exc:exception xmlns:exc=\"http://www.sap.com/abapxml/types/communicationframework\"><namespace id=\"com.sap.adt\"/><type id=\"ExceptionResourceAlreadyExists\"/><message lang=\"EN\">Resource CLASS ZVT_SWEEP_CLS does alrea"
+  },
+  {
+    "id": "#23 clas.editsource_replace",
+    "how": "edit EDITSOURCE old->new",
+    "claimed": false,
+    "oracle": false,
+    "verdict": "FAIL-honest",
+    "note": "replacement visible AND active?",
+    "tool_said": "{\n  \"success\": false,\n  \"objectUrl\": \"/sap/bc/adt/oo/classes/zvt_sweep_cls\",\n  \"objectName\": \"zvt_sweep_cls\",\n  \"matchCount\": 0,\n  \"oldString\": \"pong-sweep\",\n  \"newString\": \"pong-replaced\",\n  \"message\": \"Failed to read source: ADT API error: status 404 at /sap/bc/adt/oo/classes/zvt_sweep_cls/source/main: \\u003c?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?\\u003e\\u003cexc:exception xmlns:exc=\\\"http://www"
+  },
+  {
+    "id": "#89 clas.create_with_tests",
+    "how": "create CLASS_WITH_TESTS",
+    "claimed": true,
+    "oracle": true,
+    "verdict": "OK",
+    "note": "class present AND active?",
+    "tool_said": "{\n  \"success\": true,\n  \"className\": \"ZVT_SWEEP_CLST\",\n  \"objectUrl\": \"/sap/bc/adt/oo/classes/ZVT_SWEEP_CLST\",\n  \"activation\": {\n    \"success\": true,\n    \"messages\": []\n  },\n  \"unitTestResult\": {\n    \"classes\": [\n      {\n        \"uri\": \"/sap/bc/adt/oo/classes/zvt_sweep_clst/includes/testclasses#type=CLAS%2FOCL;name=LTC\",\n        \"type\": \"CLAS/OL\",\n        \"name\": \"LTC\",\n        \"parentUri\": \"/sap/b"
+  },
+  {
+    "id": "#89b clas.tests_run_green",
+    "how": "test object_url",
+    "claimed": true,
+    "oracle": true,
+    "verdict": "OK",
+    "note": "unit test result reported? (verdict trusts tool; oracle = assertion inside test)",
+    "tool_said": "{\n  \"classes\": [\n    {\n      \"uri\": \"/sap/bc/adt/oo/classes/zvt_sweep_clst/includes/testclasses#type=CLAS%2FOCL;name=LTC\",\n      \"type\": \"CLAS/OL\",\n      \"name\": \"LTC\",\n      \"parentUri\": \"/sap/bc/adt/oo/classes/zvt_sweep_clst\",\n      \"parentType\": \"CLAS/OC\",\n      \"parentName\": \"ZVT_SWEEP_CLST\",\n      \"uriType\": \"semantic\",\n      \"navigationUri\": \"/sap/bc/adt/oo/classes/zvt_sweep_clst/includes/te"
+  },
+  {
+    "id": "#16 intf.edit_upsert",
+    "how": "edit INTF (upsert)",
+    "claimed": false,
+    "oracle": false,
+    "verdict": "FAIL-honest",
+    "note": "TADIR present AND active?",
+    "tool_said": "{\n  \"success\": false,\n  \"objectType\": \"INTF\",\n  \"objectName\": \"ZVT_SWEEP_IF\",\n  \"objectUrl\": \"\",\n  \"mode\": \"created\",\n  \"message\": \"Description is required for creating new objects\"\n}"
+  },
+  {
+    "id": "#79 tabl.create",
+    "how": "create TABL (fields json-string)",
+    "claimed": false,
+    "oracle": false,
+    "verdict": "FAIL-honest",
+    "note": "DD02L active row?",
+    "tool_said": "Failed to create table: updating table source: ADT API error: status 405 at /sap/bc/adt/ddic/tables/zvt_sweep_tab/source/main: <?xml version=\"1.0\" encoding=\"utf-8\"?><exc:exception xmlns:exc=\"http://www.sap.com/abapxml/types/communicationframework\"><namespace id=\"com.sap.adt\"/><type id=\"ExceptionResourceAlreadyExists\"/><message lang=\"EN\">Can't save due to errors in source; execute check for details"
+  },
+  {
+    "id": "#80 clas.clone",
+    "how": "create CLONE",
+    "claimed": false,
+    "oracle": false,
+    "verdict": "FAIL-honest",
+    "note": "clone exists AND source renamed?",
+    "tool_said": "{\n  \"success\": false,\n  \"sourceName\": \"ZVT_SWEEP_CLS\",\n  \"targetName\": \"ZVT_SWEEP_CLONE\",\n  \"objectType\": \"CLAS\",\n  \"package\": \"$ZVSPTEST\",\n  \"message\": \"Failed to get source: getting class source: ADT API error: status 404 at /sap/bc/adt/oo/classes/ZVT_SWEEP_CLS/source/main: \\u003c?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?\\u003e\\u003cexc:exception xmlns:exc=\\\"http://www.sap.com/abapxml/types/commun"
+  },
+  {
+    "id": "#86 wf.write_program",
+    "how": "edit type=write_program",
+    "claimed": false,
+    "oracle": false,
+    "verdict": "FAIL-honest",
+    "note": "TRDIR present AND active?",
+    "tool_said": "{\n  \"success\": false,\n  \"programName\": \"ZVT_SWEEP_WF\",\n  \"objectUrl\": \"/sap/bc/adt/programs/programs/ZVT_SWEEP_WF\",\n  \"message\": \"Failed to lock object: locking object: ADT API error: status 404 at /sap/bc/adt/programs/programs/ZVT_SWEEP_WF: \\u003c?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?\\u003e\\u003cexc:exception xmlns:exc=\\\"http://www.sap.com/abapxml/types/communicationframework\\\"\\u003e\\u003cnames"
+  },
+  {
+    "id": "#90 fileio.deploy_from_file",
+    "how": "system type=deploy_from_file",
+    "claimed": true,
+    "oracle": true,
+    "verdict": "OK",
+    "note": "file content landed?",
+    "tool_said": "{\n  \"objectUrl\": \"/sap/bc/adt/programs/programs/zvt_sweep_file\",\n  \"objectName\": \"ZVT_SWEEP_FILE\",\n  \"objectType\": \"PROG/P\",\n  \"filePath\": \"C:/Claude/vsp-src/docs/superpowers/sweeps/zvt_sweep_file.prog.abap\",\n  \"success\": true,\n  \"created\": true,\n  \"message\": \"Successfully created and activated PROG/P ZVT_SWEEP_FILE from C:/Claude/vsp-src/docs/superpowers/sweeps/zvt_sweep_file.prog.abap\"\n}"
+  },
+  {
+    "id": "#92 fileio.rename",
+    "how": "system type=rename",
+    "claimed": false,
+    "oracle": false,
+    "verdict": "FAIL-honest",
+    "note": "old gone AND new present?",
+    "tool_said": "{\n  \"oldName\": \"ZVT_SWEEP_CLONE\",\n  \"newName\": \"ZVT_SWEEP_RENAMED\",\n  \"objectType\": \"CLAS/OC\",\n  \"success\": false,\n  \"errors\": [\n    \"Failed to read old object: ADT API error: status 404 at /sap/bc/adt/oo/classes/zvt_sweep_clone/source/main: \\u003c?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?\\u003e\\u003cexc:exception xmlns:exc=\\\"http://www.sap.com/abapxml/types/communicationframework\\\"\\u003e\\u003cnames"
+  },
+  {
+    "id": "#147 report.set_text_elements",
+    "how": "debug SET_TEXT_ELEMENTS",
+    "claimed": false,
+    "oracle": false,
+    "verdict": "FAIL-honest",
+    "note": "text visible via independent i18n route?",
+    "tool_said": "At least one of selection_texts, text_symbols, or heading_texts is required"
+  },
+  {
+    "id": "#66 devtools.execute_abap",
+    "how": "analyze type=execute_abap",
+    "claimed": true,
+    "oracle": true,
+    "verdict": "OK",
+    "note": "returns 'exec-ok'? (result text is the oracle; temp program must be gone)",
+    "tool_said": "Program: ZTEMP_EXEC_43795643\nSuccess: true\nExecution Time: 0.030 s\nCleaned Up: true\nMessage: Executed successfully, 1 output(s) returned\n\nOutput:\n  [1] exec-ok\n"
+  },
+  {
+    "id": "#66b devtools.execute_abap_cleanup",
+    "how": "temp program removed",
+    "claimed": true,
+    "oracle": true,
+    "verdict": "OK",
+    "note": "ZTEMP_EXEC* leftovers: 0",
+    "tool_said": ""
+  },
+  {
+    "id": "#134 transport.create",
+    "how": "system create_transport",
+    "claimed": false,
+    "oracle": true,
+    "verdict": "SILENT",
+    "note": "see next row for the E070 oracle",
+    "tool_said": "CreateTransport failed: creating transport: ADT API error: status 400 at /sap/bc/adt/cts/transportrequests: <?xml version=\"1.0\" encoding=\"utf-8\"?><exc:exception xmlns:exc=\"http://www.sap.com/abapxml/types/communicationframework\"><namespace id=\"com.sap.adt.tm\"/><type id=\"ADT_TM_COMMON_EXCEPTION\"/><message lang=\"EN\">user action  is not supported</message><localizedMessage lang=\"EN\">user action  is n"
+  },
+  {
+    "id": "#134b transport.exists_in_E070",
+    "how": "SQL E070",
+    "claimed": false,
+    "oracle": false,
+    "verdict": "FAIL-honest",
+    "note": "no transport number parsed from reply",
+    "tool_said": "CreateTransport failed: creating transport: ADT API error: status 400 at /sap/bc/adt/cts/transportrequests: <?xml version=\"1.0\" encoding=\"utf-8\"?><exc:exception xmlns:exc=\"http://www.sap.com/abapxml/types/communicationframework\"><namespace id=\"com.sap.adt.tm\"/><type id=\"ADT_TM_COMMON_EXCEPTION\"/><message lang=\"EN\">user action  is not supported</message><localizedMessage lang=\"EN\">user action  is n"
+  },
+  {
+    "id": "#94 debug.set_statement_bp",
+    "how": "debug SET_BREAKPOINT statement",
+    "claimed": true,
+    "oracle": true,
+    "verdict": "OK",
+    "note": "registered?",
+    "tool_said": "Breakpoint set. This client now has 1 registered:\n\nstatement                               KIND=1.STATEMENT=FREE\n\nBreakpoints only fire for code running in ANOTHER session. Start DebuggerListen, then trigger the code from SAP GUI, an HTTP request or a separate RFC call."
+  },
+  {
+    "id": "#96 debug.get_breakpoints",
+    "how": "debug GET_BREAKPOINTS",
+    "claimed": true,
+    "oracle": true,
+    "verdict": "OK",
+    "note": "lists the FREE bp? (weak: same session; strong oracle = ZVSP_BP_PROBE report)",
+    "tool_said": "statement                               KIND=1.STATEMENT=FREE\n\n(The set this session registered. ADT does not report breakpoints made by other clients.)"
+  },
+  {
+    "id": "#96b debug.bp_listed",
+    "how": "GET_BREAKPOINTS contains FREE",
+    "claimed": true,
+    "oracle": true,
+    "verdict": "OK",
+    "note": "",
+    "tool_said": "statement                               KIND=1.STATEMENT=FREE\n\n(The set this session registered. ADT does not report breakpoints made by other clients.)"
+  },
+  {
+    "id": "#98 debug.delete_all_bp",
+    "how": "debug DELETE_BREAKPOINT all",
+    "claimed": true,
+    "oracle": true,
+    "verdict": "OK",
+    "note": "accepted?",
+    "tool_said": "All breakpoints registered by this session were removed."
+  },
+  {
+    "id": "#98b debug.bp_gone",
+    "how": "GET_BREAKPOINTS empty after delete all",
+    "claimed": true,
+    "oracle": true,
+    "verdict": "OK",
+    "note": "FREE no longer listed? (run ZVSP_BP_CLEAR afterwards to be safe)",
+    "tool_said": "no breakpoints registered by this client\n\n(The set this session registered. ADT does not report breakpoints made by other clients.)"
+  },
+  {
+    "id": "#148 install.check_only",
+    "how": "install_zadt_vsp check_only",
+    "claimed": true,
+    "oracle": true,
+    "verdict": "OK",
+    "note": "read-only plan answers?",
+    "tool_said": "ZADT_VSP Installation\n=====================\n\nChecking prerequisites...\n  → Package $ZVSPTEST will be created\n  ⚠ abapGit not detected → Git service will be skipped\n  ⚠ Existing objects will be updated: ZIF_VSP_SERVICE, ZCL_VSP_UTILS, ZADT_CL_TADIR_MOVE, ZCL_VSP_RFC_SERVICE, ZCL_VSP_DEBUG_SERVICE, ZCL_VSP_AMDP_SERVICE, ZCL_VSP_REPORT_SERVICE, ZCL_VSP_APC_HANDLER\n\nCheck complete (--check_only mode, "
+  },
+  {
+    "id": "#150 install.dummy_test_create",
+    "how": "install_dummy_test",
+    "claimed": false,
+    "oracle": true,
+    "verdict": "SILENT",
+    "note": "both dummy objects REALLY present? (this is the path that lied)",
+    "tool_said": "InstallDummyTest - Workflow Verification\n========================================\n\n[Step 1] Package Check/Create\n  → Package doesn't exist, creating...\n  ✗ Verification failed: package not found after create\n[Step 2] Interface Creation\n  ✓ Interface written (mode=created)\n[Step 3] Interface Verification\n  ✓ Found: ZIF_DUMMY_TEST (INTF/OI) in $ZADT_INSTALL_TEST\n[Step 4] Interface Source Read-back\n "
+  },
+  {
+    "id": "#150b install.dummy_test_cleanup",
+    "how": "install_dummy_test cleanup=true",
+    "claimed": false,
+    "oracle": false,
+    "verdict": "FAIL-honest",
+    "note": "dummy objects REALLY gone?",
+    "tool_said": "InstallDummyTest - Workflow Verification\n========================================\n\n[Step 1] Package Check/Create\n  → Package doesn't exist, creating...\n  ✗ CreateObject(package) failed: create failed after partial persistence (cleanup attempted): creating object: ADT API error: status 405 at /sap/bc/adt/packages: <?xml version=\"1.0\" encoding=\"utf-8\"?><exc:exception xmlns:exc=\"http://www.sap.com/ab"
+  },
+  {
+    "id": "#76 crud.recover_failed_create",
+    "how": "edit RECOVER_FAILED_CREATE",
+    "claimed": false,
+    "oracle": true,
+    "verdict": "SILENT",
+    "note": "nothing left behind for a clean name?",
+    "tool_said": "{\n  \"cleanup_actions\": [\n    \"could not derive object URL\"\n  ],\n  \"last_error\": \"unsupported object type \\\"CLAS\\\" for recovery\",\n  \"object_url\": \"\",\n  \"package\": \"\",\n  \"status\": \"partial\",\n  \"transport\": \"\"\n}"
+  },
+  {
+    "id": "cleanup",
+    "leftovers": []
+  }
+]

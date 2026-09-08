@@ -1,0 +1,436 @@
+{
+  "system": "dev",
+  "reach": null,
+  "answer": [
+    {
+      "id": "core.help",
+      "capability": "action=help",
+      "why": "the documentation an agent reads before anything else",
+      "verdict": "answered",
+      "evidence": "SAP - Universal ABAP Development Tool"
+    },
+    {
+      "id": "core.info",
+      "capability": "action=info",
+      "why": "the answer to an empty call: build, session, system, what next",
+      "verdict": "answered",
+      "evidence": "vsp unknown build — this answer cannot be dated against a fix"
+    },
+    {
+      "id": "core.system",
+      "capability": "action=system",
+      "why": "release and database, which every route decision depends on",
+      "verdict": "answered",
+      "evidence": "{"
+    },
+    {
+      "id": "core.read",
+      "capability": "action=read",
+      "why": "reading a class is the single most used capability",
+      "verdict": "answered",
+      "evidence": "class CL_ABAP_TYPEDESCR definition\r"
+    },
+    {
+      "id": "core.read.program",
+      "capability": "action=read (PROG)",
+      "why": "programs take a different ADT path from classes",
+      "verdict": "answered",
+      "evidence": "*\u0026---------------------------------------------------------------------*\r"
+    },
+    {
+      "id": "core.search",
+      "capability": "action=search",
+      "why": "object search; an empty answer here is never true for 'CL_*'",
+      "verdict": "answered",
+      "evidence": "{"
+    },
+    {
+      "id": "core.query",
+      "capability": "action=query",
+      "why": "free SQL, the route under most of the analysis surface",
+      "verdict": "answered",
+      "evidence": "{"
+    },
+    {
+      "id": "core.grep",
+      "capability": "action=grep",
+      "why": "source search across a package",
+      "verdict": "answered",
+      "evidence": "{"
+    },
+    {
+      "id": "graph.callers",
+      "capability": "analyze type=callers",
+      "why": "the up direction; empty means nothing calls this object",
+      "verdict": "timed-out",
+      "detail": "the where-used list could not be read for /sap/bc/adt/oo/classes/cl_abap_typedescr: find references failed: executing request: Post \"https://<redacted-host>.sap....",
+      "evidence": "the where-used list could not be read for /sap/bc/adt/oo/classes/cl_abap_typedescr: find references failed: executing request: Post \"https://<redacted-host>.sap...."
+    },
+    {
+      "id": "graph.callees",
+      "capability": "analyze type=callees",
+      "why": "the down direction, read from the cross-reference tables",
+      "verdict": "answered",
+      "evidence": "{"
+    },
+    {
+      "id": "graph.call_graph",
+      "capability": "analyze type=call_graph",
+      "why": "the combined graph; it once answered with a root and no children",
+      "verdict": "timed-out",
+      "detail": "the where-used list could not be read for /sap/bc/adt/oo/classes/cl_abap_typedescr: find references failed: executing request: Post \"https://<redacted-host>.sap....",
+      "evidence": "the where-used list could not be read for /sap/bc/adt/oo/classes/cl_abap_typedescr: find references failed: executing request: Post \"https://<redacted-host>.sap...."
+    },
+    {
+      "id": "graph.object_structure",
+      "capability": "analyze type=object_structure",
+      "why": "a class always has components; an empty structure is never true",
+      "verdict": "answered",
+      "evidence": "{"
+    },
+    {
+      "id": "graph.impact",
+      "capability": "analyze type=impact",
+      "why": "reverse dependencies of an object known to have them",
+      "verdict": "answered",
+      "evidence": "{"
+    },
+    {
+      "id": "graph.usage_examples",
+      "capability": "analyze type=usage_examples",
+      "why": "asked CROSS for a two-letter code in a one-character column, and had never returned a row",
+      "verdict": "answered",
+      "evidence": "{"
+    },
+    {
+      "id": "graph.where_used_config",
+      "capability": "analyze type=where_used_config",
+      "why": "filtered on a value that is not a value of that column",
+      "verdict": "answered",
+      "evidence": "{"
+    },
+    {
+      "id": "graph.check_boundaries",
+      "capability": "analyze type=check_boundaries",
+      "why": "directional package crossings",
+      "verdict": "answered",
+      "evidence": "Package Boundary Analysis: APPL_CO_XI_PROXY"
+    },
+    {
+      "id": "graph.graph_stats",
+      "capability": "analyze type=graph_stats",
+      "why": "graph counts over supplied source; two statements can never be zero nodes",
+      "verdict": "answered",
+      "evidence": "{"
+    },
+    {
+      "id": "graph.graph_stats.object",
+      "capability": "analyze type=graph_stats (object)",
+      "why": "the same counts asked about a repository object, which the type refused to do until 2026-08-25 while its name promised otherwise",
+      "verdict": "answered",
+      "evidence": "{"
+    },
+    {
+      "id": "graph.graph_stats.package",
+      "capability": "analyze type=graph_stats (package)",
+      "why": "counts over a whole package, through the same scanner the boundary check uses",
+      "verdict": "answered",
+      "evidence": "{"
+    },
+    {
+      "id": "graph.loads",
+      "capability": "analyze type=loads",
+      "why": "the compile-time load graph from D010INC; the one source here that answers what must be present rather than what is named",
+      "verdict": "answered",
+      "evidence": "{"
+    },
+    {
+      "id": "graph.health",
+      "capability": "analyze type=health",
+      "why": "the report that once said GOOD over a scan that could not run",
+      "verdict": "answered",
+      "evidence": "{"
+    },
+    {
+      "id": "graph.co_change",
+      "capability": "analyze type=co_change",
+      "why": "objects that travel together in transports",
+      "verdict": "answered",
+      "evidence": "{"
+    },
+    {
+      "id": "graph.cr_history",
+      "capability": "analyze type=cr_history",
+      "why": "change-request grouping over transport attributes",
+      "verdict": "answered",
+      "evidence": "{"
+    },
+    {
+      "id": "graph.analyze_call_graph",
+      "capability": "analyze type=analyze_call_graph",
+      "why": "the call graph with its statistics; the statistics counted two nodes for twenty-seven edges until 2026-08-24",
+      "verdict": "answered",
+      "evidence": "{"
+    },
+    {
+      "id": "graph.compare_call_graphs",
+      "capability": "analyze type=compare_call_graphs",
+      "why": "static prediction against a supplied trace; the trace is ours, so only the static half is under test",
+      "verdict": "answered",
+      "evidence": "{"
+    },
+    {
+      "id": "graph.trace_execution",
+      "capability": "analyze type=trace_execution",
+      "why": "predicted against actual; with no trace recorded the static half must still answer, and the absence must be declared",
+      "verdict": "answered",
+      "evidence": "{"
+    },
+    {
+      "id": "graph.cr_boundaries",
+      "capability": "analyze type=cr_boundaries",
+      "why": "change requests grouped across transports; needs the CR attribute this landscape uses",
+      "verdict": "skipped",
+      "detail": "no cr_attribute was available to probe with"
+    },
+    {
+      "id": "graph.tr_boundaries",
+      "capability": "analyze type=tr_boundaries",
+      "why": "a transport holding nothing was once reported SELF-CONSISTENT",
+      "verdict": "empty",
+      "detail": "nothing found, and on this capability that is an ordinary answer",
+      "evidence": "No objects found in transports: TR-EXAMPLE"
+    },
+    {
+      "id": "pm.list_dumps",
+      "capability": "analyze type=list_dumps",
+      "why": "ST22 over ADT; a quiet system genuinely has none",
+      "verdict": "answered",
+      "evidence": "{"
+    },
+    {
+      "id": "pm.group_dumps",
+      "capability": "analyze type=group_dumps",
+      "why": "grouping by what keeps failing",
+      "verdict": "answered",
+      "evidence": "{"
+    },
+    {
+      "id": "pm.application_log",
+      "capability": "analyze type=application_log",
+      "why": "SLG1 read as an ordinary table, because BAL_DB_SEARCH is not remote-enabled",
+      "verdict": "answered",
+      "evidence": "{"
+    },
+    {
+      "id": "pm.list_traces",
+      "capability": "analyze type=list_traces",
+      "why": "SAT traces recorded on this system",
+      "verdict": "empty",
+      "detail": "nothing found, and on this capability that is an ordinary answer",
+      "evidence": "[]"
+    },
+    {
+      "id": "pm.get_dump",
+      "capability": "analyze type=get_dump",
+      "why": "one runtime error in full; the id is resolved before the sweep so an empty feed reads as skipped",
+      "verdict": "skipped",
+      "detail": "no dump was available to probe with"
+    },
+    {
+      "id": "pm.explain_dump",
+      "capability": "analyze type=explain_dump",
+      "why": "the dump joined to what the application log said around it",
+      "verdict": "skipped",
+      "detail": "no dump was available to probe with"
+    },
+    {
+      "id": "pm.similar_dumps",
+      "capability": "analyze type=similar_dumps",
+      "why": "a dump is always similar to itself, so an empty answer here cannot be true",
+      "verdict": "skipped",
+      "detail": "no dump was available to probe with"
+    },
+    {
+      "id": "pm.dump_impact",
+      "capability": "analyze type=dump_impact",
+      "why": "what the failing program reaches; the blast radius rung",
+      "verdict": "skipped",
+      "detail": "no dump was available to probe with"
+    },
+    {
+      "id": "pm.get_trace",
+      "capability": "analyze type=get_trace",
+      "why": "one recorded trace read back; skipped when nothing was ever recorded",
+      "verdict": "skipped",
+      "detail": "no trace was available to probe with"
+    },
+    {
+      "id": "pm.list_sql_traces",
+      "capability": "analyze type=list_sql_traces",
+      "why": "ST05 records; a system nobody traced has none",
+      "verdict": "absent",
+      "detail": "Failed to list SQL traces: listing SQL traces: ADT API error: status 404 at /sap/bc/adt/st05/trace/directory?%24top=100: \u003c?xml version=\"1.0\" encoding=\"utf-8\"...",
+      "evidence": "Failed to list SQL traces: listing SQL traces: ADT API error: status 404 at /sap/bc/adt/st05/trace/directory?%24top=100: \u003c?xml version=\"1.0\" encoding=\"utf-8\"..."
+    },
+    {
+      "id": "pm.sql_trace_state",
+      "capability": "analyze type=sql_trace_state",
+      "why": "ST05 state always has an answer, on or off",
+      "verdict": "absent",
+      "detail": "Failed to get SQL trace state: getting SQL trace state: ADT API error: status 404 at /sap/bc/adt/st05/trace/state: \u003c?xml version=\"1.0\" encoding=\"utf-8\"?\u003e\u003cexc...",
+      "evidence": "Failed to get SQL trace state: getting SQL trace state: ADT API error: status 404 at /sap/bc/adt/st05/trace/state: \u003c?xml version=\"1.0\" encoding=\"utf-8\"?\u003e\u003cexc..."
+    },
+    {
+      "id": "ctx.context",
+      "capability": "analyze type=context",
+      "why": "dependency contracts appended to a read",
+      "verdict": "answered",
+      "evidence": "* === Dependency context for CL_ABAP_TYPEDESCR (1 deps) ==="
+    },
+    {
+      "id": "ctx.effects",
+      "capability": "analyze type=effects",
+      "why": "side effects and LUW class; a library with no caller until 2026-08-25",
+      "verdict": "answered",
+      "evidence": "{"
+    },
+    {
+      "id": "ctx.parse_abap",
+      "capability": "analyze type=parse_abap",
+      "why": "the offline parser; it needs no system and must never be empty",
+      "verdict": "answered",
+      "evidence": "{"
+    },
+    {
+      "id": "ctx.analyze_deps",
+      "capability": "analyze type=analyze_deps",
+      "why": "dependency extraction from source",
+      "verdict": "answered",
+      "evidence": "{"
+    },
+    {
+      "id": "i18n.texts",
+      "capability": "action=i18n op=texts",
+      "why": "an object's own texts in one language",
+      "verdict": "answered",
+      "evidence": "\u003c?xml version=\"1.0\" encoding=\"utf-8\"?\u003e\u003cclass:abapClass class:final=\"false\" class:abstract=\"true\" class:visibility=\"public\" class:category=\"generalObjectType\"..."
+    },
+    {
+      "id": "i18n.data_element_labels",
+      "capability": "action=i18n op=data_element_labels",
+      "why": "the four labels a data element carries into every screen that uses it",
+      "verdict": "answered",
+      "evidence": "{"
+    },
+    {
+      "id": "i18n.message_class_texts",
+      "capability": "action=i18n op=message_class_texts",
+      "why": "the texts behind MESSAGE statements",
+      "verdict": "dead",
+      "detail": "returned nothing while the target was chosen because T100 holds English texts for it says there are 1",
+      "oracleCount": 1,
+      "oracleHow": "the target was chosen because T100 holds English texts for it",
+      "evidence": "["
+    },
+    {
+      "id": "i18n.text_pool",
+      "capability": "action=i18n op=text_pool",
+      "why": "selection texts and text symbols, which live outside the source",
+      "verdict": "broken",
+      "detail": "the answer does not contain \"\\\"key\\\"\", so it is not an answer to this question",
+      "evidence": "No text pool entries found."
+    },
+    {
+      "id": "i18n.compare_languages",
+      "capability": "action=i18n op=compare_languages",
+      "why": "what a translation is missing",
+      "verdict": "answered",
+      "evidence": "{"
+    },
+    {
+      "id": "rev.list",
+      "capability": "action=revisions op=list",
+      "why": "the version history of an object known to have one",
+      "verdict": "broken",
+      "detail": "GetRevisions failed: resolving revision URL for FUGR MLCCS_UPDATE: unsupported object type for revisions: FUGR (supported: PROG, CLAS, INTF, FUNC, INCL, DDLS...",
+      "evidence": "GetRevisions failed: resolving revision URL for FUGR MLCCS_UPDATE: unsupported object type for revisions: FUGR (supported: PROG, CLAS, INTF, FUNC, INCL, DDLS..."
+    },
+    {
+      "id": "rev.source",
+      "capability": "action=revisions op=source",
+      "why": "the source as one past version had it",
+      "verdict": "skipped",
+      "detail": "no version_uri was available to probe with"
+    },
+    {
+      "id": "rev.compare",
+      "capability": "action=revisions op=compare",
+      "why": "what changed between two versions",
+      "verdict": "skipped",
+      "detail": "no version_uri was available to probe with"
+    },
+    {
+      "id": "lint.action",
+      "capability": "action=lint",
+      "why": "static analysis of supplied source, with no server involved",
+      "verdict": "answered",
+      "evidence": "{"
+    },
+    {
+      "id": "lint.analyze",
+      "capability": "analyze type=lint",
+      "why": "the same analyser under the name somebody looks for it by",
+      "verdict": "answered",
+      "evidence": "{"
+    }
+  ],
+  "unprobed": [
+    "action=i18n op=write_labels",
+    "action=i18n op=write_message_texts"
+  ],
+  "advertised": 52,
+  "missed": [
+    {
+      "object": "runtime dump",
+      "reason": "the dump feed is empty on this system, which is a fact about the system rather than about the capability"
+    },
+    {
+      "object": "CR attribute",
+      "reason": "no transport_attribute is configured for this system, so the change-request types have nothing to group by"
+    },
+    {
+      "object": "ABAP trace",
+      "reason": "no trace has been recorded on this system; nothing to ask get_trace about"
+    },
+    {
+      "object": "a version URI",
+      "reason": "resolving revision URL for FUGR MLCCS_UPDATE: unsupported object type for revisions: FUGR (supported: PROG, CLAS, INTF, FUNC, INCL, DDLS, BDEF, SRVD)"
+    }
+  ],
+  "reachChecked": 280,
+  "targets": {
+    "Class": "CL_ABAP_TYPEDESCR",
+    "Program": "ZABAP2XLSX_DEMO_SHOW",
+    "Package": "APPL_CO_XI_PROXY",
+    "Group": "",
+    "Table": "T000",
+    "Referenced": "CL_ABAP_TYPEDESCR",
+    "References": "CL_HR_NL_FBN_UTIL",
+    "ReferencesType": "CLAS",
+    "Dump": "",
+    "Trace": "",
+    "Versioned": "MLCCS_UPDATE",
+    "VersionedType": "FUGR",
+    "VersionURI": "",
+    "VersionURI2": "",
+    "DataElement": "/ATL/CHAR1",
+    "MessageClass": "60",
+    "TextPoolProgram": "LHRPAYBE_DMFA_WORKFLOWU01",
+    "CRAttribute": ""
+  },
+  "release": "752",
+  "database": "HDB",
+  "build": "v2.54.0-fix406 (commit 9b8789d, built 2026-08-28)",
+  "live": true
+}

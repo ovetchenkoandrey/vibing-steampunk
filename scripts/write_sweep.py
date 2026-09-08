@@ -28,7 +28,7 @@ Outputs: docs/superpowers/sweeps/write-sweep-<ts>.json and .md
 import argparse, datetime, json, os, re, subprocess, sys, time
 
 # --------------------------------------------------------------------------- config
-VSP = os.environ.get("VSP_EXE", os.path.expanduser(r"~\.claude\mcp\vsp.exe"))
+VSP_EXE = os.environ.get("VSP_EXE", os.path.expanduser(r"~\.claude\mcp\vsp.exe"))
 VSP_ARGS = ["--insecure", "--enable-transports", "--allow-transportable-edits", "--mode", "hyperfocused"]
 SANDBOX_PKG = "$ZVSPTEST"
 ALLOWED_PKGS = (SANDBOX_PKG, "$ZADT_INSTALL_TEST")  # second one is the tool's own self-cleaning test package
@@ -47,7 +47,7 @@ class VSP:
         self.dry_run, self.proc, self._id = dry_run, None, 0
         if dry_run:
             return
-        self.proc = subprocess.Popen([VSP] + VSP_ARGS, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+        self.proc = subprocess.Popen([VSP_EXE] + VSP_ARGS, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                      stderr=subprocess.DEVNULL, env=dict(os.environ, SAP_INSECURE="true"),
                                      text=True, encoding="utf-8")
         self._rpc("initialize", {"protocolVersion": "2024-11-05", "capabilities": {},
@@ -117,23 +117,25 @@ class Oracle:
         r = self.sql(query)
         return bool(r)
 
-    def tadir(self, obj_type, name):        return self.rows(f"SELECT OBJ_NAME FROM TADIR WHERE OBJECT='{obj_type}' AND OBJ_NAME='{name}'")
+    def tadir(self, obj_type, name):        return self.rows(f"SELECT OBJ_NAME FROM TADIR WHERE OBJECT = '{obj_type}' AND OBJ_NAME = '{name}'")
     def tadir_pkg(self, obj_type, name):
-        r = self.sql(f"SELECT DEVCLASS FROM TADIR WHERE OBJECT='{obj_type}' AND OBJ_NAME='{name}'")
+        r = self.sql(f"SELECT DEVCLASS FROM TADIR WHERE OBJECT = '{obj_type}' AND OBJ_NAME = '{name}'")
         return (r[0].get("DEVCLASS") if r else None)
-    def package_exists(self, pkg):          return self.rows(f"SELECT DEVCLASS FROM TDEVC WHERE DEVCLASS='{pkg}'")
-    def program_exists(self, name):         return self.rows(f"SELECT NAME FROM TRDIR WHERE NAME='{name}'")
-    def table_active(self, name):           return self.rows(f"SELECT TABNAME FROM DD02L WHERE TABNAME='{name}' AND AS4LOCAL='A'")
-    def is_inactive(self, name):            return self.rows(f"SELECT OBJ_NAME FROM DWINACTIV WHERE OBJ_NAME='{name}'")
-    def transport_exists(self, trkorr):     return self.rows(f"SELECT TRKORR FROM E070 WHERE TRKORR='{trkorr}'")
+    def package_exists(self, pkg):          return self.rows(f"SELECT DEVCLASS FROM TDEVC WHERE DEVCLASS = '{pkg}'")
+    def program_exists(self, name):         return self.rows(f"SELECT NAME FROM TRDIR WHERE NAME = '{name}'")
+    def table_active(self, name):           return self.rows(f"SELECT TABNAME FROM DD02L WHERE TABNAME = '{name}' AND AS4LOCAL = 'A'")
+    def is_inactive(self, name):            return self.rows(f"SELECT OBJ_NAME FROM DWINACTIV WHERE OBJ_NAME = '{name}'")
+    def transport_exists(self, trkorr):     return self.rows(f"SELECT TRKORR FROM E070 WHERE TRKORR = '{trkorr}'")
     def text_symbol(self, prog, key, text):
         # independent i18n route (ADT text pool), not the report-service handler that wrote it
         ok, out = self.vsp.sap("i18n", None, {"op": "text_pool", "program_name": prog, "language": "EN"})
         return ok and (key in out) and (text in out)
 
     def source_has(self, target, needle):
+        # case-insensitive: ADT returns CLASS/METHOD names upper-cased, and
+        # some needles are passed lower-cased (e.g. a clone's new name).
         ok, out = self.vsp.sap("read", target, {"include_context": False})
-        return ok and (needle in out)
+        return ok and (needle.lower() in out.lower())
 
 
 # --------------------------------------------------------------------------- verdicts
@@ -205,9 +207,10 @@ class Sweep:
         if not self.dry and self.o.package_exists(SANDBOX_PKG):
             self.rec("#78 devc.create", "create DEVC", True, "(pre-existing)", True, "sandbox already present")
             return
-        self.call("#78 devc.create", "create DEVC", "create", "DEVC",
-                  {"name": SANDBOX_PKG, "description": "VSP write-sweep sandbox"},
-                  lambda: self.o.package_exists(SANDBOX_PKG), "TDEVC row present?")
+        # setup step: always runs regardless of --only (every other probe needs the sandbox)
+        ok, out = self.vsp.sap("create", "DEVC", {"name": SANDBOX_PKG, "description": "VSP write-sweep sandbox"})
+        real = True if self.dry else self.o.package_exists(SANDBOX_PKG)
+        self.rec("#78 devc.create", "create DEVC", ok and claimed(out), out, real, "TDEVC row present?")
 
     # -- #88/#4/#15/#67/#71/#72/#73/#81 program lifecycle -------------------
     def p_program(self):
@@ -268,8 +271,8 @@ class Sweep:
                   {"source": src, "package": SANDBOX_PKG},
                   lambda: self.o.source_has(f"CLAS {n}", "pong-sweep") and not self.o.is_inactive(n),
                   "source visible AND active?")
-        # known suspect: a repeated create must not destroy the object (cleanup-on-error)
-        before = True if self.dry else self.o.tadir("CLAS", n)
+        if self.want("#77b"):
+         before = True if self.dry else self.o.tadir("CLAS", n)
         ok, out = self.vsp.sap("create", "OBJECT", {"object_type": "CLAS/OC", "name": n,
                                                      "package_name": SANDBOX_PKG, "description": "sweep"})
         after = True if self.dry else self.o.tadir("CLAS", n)
@@ -488,8 +491,8 @@ def main():
         missing = [k for k in REQUIRED_ENV if not os.environ.get(k)]
         if missing:
             sys.exit(f"missing env: {', '.join(missing)} (credentials are never stored in this file)")
-        if not os.path.exists(VSP):
-            sys.exit(f"vsp.exe not found at {VSP} (set VSP_EXE)")
+        if not os.path.exists(VSP_EXE):
+            sys.exit(f"vsp.exe not found at {VSP_EXE} (set VSP_EXE)")
     print(f"sandbox={SANDBOX_PKG} prefix={PREFIX} dry_run={args.dry_run} only={args.only or '*'}")
     vsp = VSP(args.dry_run)
     try:

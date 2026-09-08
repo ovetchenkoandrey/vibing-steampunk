@@ -1,0 +1,59 @@
+4 of 8 probe targets could not be searched, so this is not a complete answer:
+  runtime dump: the dump feed is empty on this system, which is a fact about the system rather than about the capability
+  CR attribute: no transport_attribute is configured for this system, so the change-request types have nothing to group by
+  ABAP trace: no trace has been recorded on this system; nothing to ask get_trace about
+  a version URI: resolving revision URL for FUGR MLCCS_UPDATE: unsupported object type for revisions: FUGR (supported: PROG, CLAS, INTF, FUNC, INCL, DDLS, BDEF, SRVD)
+sweeping dev...
+  core.help                    action=help
+  core.info                    action=info
+  core.system                  action=system
+  core.read                    action=read
+  core.read.program            action=read (PROG)
+  core.search                  action=search
+  core.query                   action=query
+  core.grep                    action=grep
+  graph.callers                analyze type=callers
+  graph.callees                analyze type=callees
+  graph.call_graph             analyze type=call_graph
+  graph.object_structure       analyze type=object_structure
+  graph.impact                 analyze type=impact
+  graph.usage_examples         analyze type=usage_examples
+  graph.where_used_config      analyze type=where_used_config
+  graph.check_boundaries       analyze type=check_boundaries
+  graph.graph_stats            analyze type=graph_stats
+  graph.graph_stats.object     analyze type=graph_stats (object)
+  graph.graph_stats.package    analyze type=graph_stats (package)
+  graph.loads                  analyze type=loads
+  graph.health                 analyze type=health
+  graph.co_change              analyze type=co_change
+  graph.cr_history             analyze type=cr_history
+  graph.analyze_call_graph     analyze type=analyze_call_graph
+  graph.compare_call_graphs    analyze type=compare_call_graphs
+  graph.trace_execution        analyze type=trace_execution
+  graph.cr_boundaries          analyze type=cr_boundaries
+  graph.tr_boundaries          analyze type=tr_boundaries
+  pm.list_dumps                analyze type=list_dumps
+  pm.group_dumps               analyze type=group_dumps
+  pm.application_log           analyze type=application_log
+  pm.list_traces               analyze type=list_traces
+  pm.get_dump                  analyze type=get_dump
+  pm.explain_dump              analyze type=explain_dump
+  pm.similar_dumps             analyze type=similar_dumps
+  pm.dump_impact               analyze type=dump_impact
+  pm.get_trace                 analyze type=get_trace
+  pm.list_sql_traces           analyze type=list_sql_traces
+  pm.sql_trace_state           analyze type=sql_trace_state
+  ctx.context                  analyze type=context
+  ctx.effects                  analyze type=effects
+  ctx.parse_abap               analyze type=parse_abap
+  ctx.analyze_deps             analyze type=analyze_deps
+  i18n.texts                   action=i18n op=texts
+  i18n.data_element_labels     action=i18n op=data_element_labels
+  i18n.message_class_texts     action=i18n op=message_class_texts
+  i18n.text_pool               action=i18n op=text_pool
+  i18n.compare_languages       action=i18n op=compare_languages
+  rev.list                     action=revisions op=list
+  rev.source                   action=revisions op=source
+  rev.compare                  action=revisions op=compare
+  lint.action                  action=lint
+  lint.analyze                 analyze type=lint
