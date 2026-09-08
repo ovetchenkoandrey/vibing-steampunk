@@ -259,7 +259,7 @@ Cross-checked against `tools_register.go` (+ `registerGetSource/WriteSource/Grep
 4. `routeUI5Action` checks `params.type` **before** looking at the action, so `ui5_*` types fire under any action (rows #118–124 list "any action").
 5. `execute_abap` is reachable twice (`analyze` #66 and `system` #139), `MoveObject` twice (`edit MOVE` #74 and `debug MOVE` #100), service publish twice (target vs `params.type`), UI5 ops twice — same handlers, counted as separate branches.
 6. `routeI18nAction`'s example for `compare_languages` uses `languages: "EN,DE"`, but `handleCompareObjectLanguages` requires `source_language` + `target_language` (#207).
-7. `create_transport` (#134) reads `params.type` both as the route selector and as the transport type — the transport type cannot be passed through `SAP()` (always `"create_transport"`).
+7. `create_transport` (#134): the route selector is `params.type` ("create_transport"), which used to also be read as the transport request type — so the type could never be passed. FIXED 2026-09-08: the handler now reads `transport_type` (aliases `req_type`/`trfunction`).
 8. `test` with no `object_url` (#64) declines in `routeDevToolsAction` and no later route claims it, so it ends in "No handler found".
 9. `routeRFCAction` returns `handled=true` for every `action="rfc"`, including unknown ops (error listing the seven ops).
 
@@ -331,7 +331,7 @@ success, oracle disagreed) / SILENT (errored but a change happened).
 | #79 | create TABL | 405 "errors in source" | DDIC table source rejected on 7.52 — needs the table-source format / `tables.v2` check |
 | #86 | edit type=write_program (new) | 404 on LOCK | workflow write_program locks before the object exists → cannot create a *new* program this way |
 | #147 | debug SET_TEXT_ELEMENTS | "one of …_texts required" | `text_symbols` dict not parsed — param-format mismatch (cf. `fields` wants a JSON *string*) |
-| #134 | system create_transport | 400 "user action is not supported" | create_transport rejected; also `params.type` is consumed as the route selector (static obs #7) |
+| #134 | system create_transport | (was 400 "user action is not supported" — wrong endpoint) | FIXED: old→new endpoint fallback + `transport_type` wiring; workbench works on 7.5x & S/4, customizing on S/4 only |
 | #92 | system rename | 400 | rename of an existing class failed (needs error-body detail; not a cascade — clone did exist) |
 | #16 | edit INTF (upsert-create) | "Description is required" | interface upsert-create needs `description`; class upsert-create does not — inconsistent |
 | #150 | install_dummy_test | 405 on cleanup | self-test install path is messy (errors + 405); low priority |
@@ -347,23 +347,26 @@ success, oracle disagreed) / SILENT (errored but a change happened).
 - **LIAR count after oracle fix: 0.** On the write path the tool does not claim false success.
 - Oracle/tool note: ADT free SQL (`query SQL`) is whitespace-sensitive — `X = 'Y'` works, `X='Y'` → 400.
 
-## Transports on 7.52 — create/delete WORK (fixed 2026-09-08)
+## Transports — create/delete WORK; type depends on release (updated 2026-09-08)
 
-The original conclusion "ADT cannot create requests on 7.5x" was WRONG — it came from
-reading only the `/cts/transportrequests` POST handler (CL_CTS_ADT_TM_REST_RES_CONT->post),
-which indeed only adds tasks / runs checks / releases and reads the action from the URI
-attribute `traction`. **Create lives on a different collection.** Confirmed against
-`abap-adt-api` and verified live on 7.52:
+The create endpoint is release-divergent (upstream issue #70). Two standard ADT resources:
 
-- **create_transport — FIXED in the tool.** `CreateTransportV2` now POSTs to
-  **`/sap/bc/adt/cts/transports`** (not `/transportrequests`) with
-  `Content-Type: application/vnd.sap.as+xml;...dataname=com.sap.adt.CreateCorrectionRequest`,
-  `Accept: text/plain`, and an asx body `{OPERATION:"I", DEVCLASS, REQUEST_TEXT, REF}`.
-  Response is `/com.sap.cts/object_record/<TRKORR>`; the existing parser takes the last
-  segment. Verified end-to-end via the tool: create COEK900411 → E070 → delete → gone.
-- **delete_transport — works** via the tool's ADT path (unchanged).
-- **release** — untouched by policy.
-- This is the standard Eclipse-ADT create path, so it works on 7.50 too. The old FM helper
-  (ZVSP_TR_CREATE) is removed — not needed.
-- Follow-up: workbench vs customizing type is not expressed in the CreateCorrectionRequest
-  body (request type follows the package); add if customizing requests are ever needed.
+- **7.50-7.52** — `POST /sap/bc/adt/cts/transports` (CL_CTS_ADT_RES_OBJ_RECORD->post).
+  Body: asx `com.sap.adt.CreateCorrectionRequest` `{OPERATION:"I", DEVCLASS, REQUEST_TEXT, REF}`,
+  `Accept: text/plain`; response `/com.sap.cts/object_record/<TRKORR>`. Read the class:
+  `post()` **hardcodes `new_type_request = 'K'`** (workbench) and never reads `trfunction`;
+  the `check_before_creation` BAdI gets the type as input-only and cannot change it. So on
+  these releases **customizing (W) is not creatable via ADT at all** — SAP's design, not VSP.
+- **S/4HANA 75x+** — that endpoint 400s; `POST /sap/bc/adt/cts/transportrequests`
+  (CL_CTS_ADT_TM_REST_RES_CONT->post) with a `tm:root` body whose `tm:type` honours K/W.
+
+`CreateTransportV2` now tries old → new and passes the request type to both. Net:
+
+- **Workbench (K)** — works on 7.5x and on S/4HANA. Verified live on 7.52 (create → E070 → delete → gone).
+- **Customizing (W)** — works on S/4HANA (new endpoint); on 7.5x it degrades to K (SAP hardcode).
+- **Type is now expressible** through the tool via `transport_type` (aliases `req_type`/`trfunction`);
+  `type` is the route selector and can't carry it (static obs #7). Handler fixed to read the distinct key.
+- **delete_transport** — works via ADT on all releases (unchanged). **release** — untouched by policy.
+- **Remedy for real W on 7.5x** — the FM path `TR_INSERT_REQUEST_WITH_TASKS` with `iv_type='W'`
+  (a small backend helper report, e.g. reinstating ZVSP_TR_CREATE) or SE09/SE10 by hand.
+  Not built yet; pending decision on whether customizing-on-old is worth the ZADT_VSP coupling.
