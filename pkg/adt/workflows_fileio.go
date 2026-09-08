@@ -119,7 +119,9 @@ func (c *Client) RenameObject(ctx context.Context, objType CreatableObjectType, 
 		_ = c.UnlockObject(ctx, newURL, lockResult.LockHandle)
 	}()
 
-	err = c.UpdateSource(ctx, newURL, newSource, lockResult.LockHandle, transport)
+	// UpdateSource targets the source sub-resource, not the bare object URL —
+	// a PUT to the object URL itself returns 400 (matches WriteProgram/WriteClass).
+	err = c.UpdateSource(ctx, newURL+"/source/main", newSource, lockResult.LockHandle, transport)
 	if err != nil {
 		result.Errors = append(result.Errors, fmt.Sprintf("Failed to write source: %v", err))
 		return result, nil
