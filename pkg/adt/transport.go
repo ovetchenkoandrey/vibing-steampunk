@@ -736,15 +736,24 @@ func (c *Client) CreateTransportV2(ctx context.Context, opts CreateTransportOpti
 		return "", fmt.Errorf("package is required")
 	}
 
-	// ADT creates a request via POST /sap/bc/adt/cts/transports with a
-	// CreateCorrectionRequest body — NOT via /cts/transportrequests, whose POST
-	// handler (CL_CTS_ADT_TM_REST_RES_CONT) only adds tasks / runs checks /
-	// releases and reads the action from the URI attribute "traction", so a
-	// tm:useraction body always failed with "user action is not supported".
-	// This is the endpoint Eclipse ADT and abap-adt-api use. Verified on 7.52.
-	// (Request type follows the package; explicit workbench/customizing choice
-	// is not expressed here — a follow-up if customizing requests are needed.)
-	body := fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
+	// Request type: K = workbench (default), W = customizing.
+	reqType := "K"
+	if strings.EqualFold(opts.Type, "customizing") || strings.EqualFold(opts.Type, "W") {
+		reqType = "W"
+	}
+
+	// The create endpoint differs by SAP release, so try old then new:
+	//   7.50-7.52: POST /sap/bc/adt/cts/transports with a CreateCorrectionRequest
+	//     asx body; ?trfunction chooses K/W (on old releases CL_CTS_ADT_RES_OBJ_RECORD
+	//     hardcodes K, so W degrades to workbench there — use the FM path for real W).
+	//   S/4HANA 75x+: that endpoint fails; POST /sap/bc/adt/cts/transportrequests with
+	//     a tm:root body whose tm:type honours K/W. This split is upstream issue #70 —
+	//     fixing forward for 757 had broken 7.5x; the fallback keeps both working.
+	oldQuery := map[string][]string{"trfunction": {reqType}}
+	if opts.TransportLayer != "" {
+		oldQuery["transportLayer"] = []string{opts.TransportLayer}
+	}
+	oldBody := fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
 <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
   <asx:values>
     <DATA>
@@ -754,27 +763,42 @@ func (c *Client) CreateTransportV2(ctx context.Context, opts CreateTransportOpti
       <REF></REF>
     </DATA>
   </asx:values>
-</asx:abap>`,
-		escapeXML(opts.Package),
-		escapeXML(opts.Description))
-
-	query := make(map[string][]string)
-	if opts.TransportLayer != "" {
-		query["transportLayer"] = []string{opts.TransportLayer}
-	}
+</asx:abap>`, escapeXML(opts.Package), escapeXML(opts.Description))
 
 	resp, err := c.transport.Request(ctx, "/sap/bc/adt/cts/transports", &RequestOptions{
 		Method:      http.MethodPost,
-		Query:       query,
-		Body:        []byte(body),
+		Query:       oldQuery,
+		Body:        []byte(oldBody),
 		ContentType: "application/vnd.sap.as+xml; charset=UTF-8; dataname=com.sap.adt.CreateCorrectionRequest",
 		Accept:      "text/plain",
 	})
-	if err != nil {
-		return "", fmt.Errorf("creating transport: %w", err)
+	if err == nil {
+		return parseCreateTransportResponse(resp.Body)
 	}
 
-	return parseCreateTransportResponse(resp.Body)
+	// Fallback: newer S/4HANA create endpoint (tm:type honours K/W).
+	owner := strings.ToUpper(c.config.Username)
+	newBody := fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
+<tm:root xmlns:tm="http://www.sap.com/cts/adt/tm" tm:useraction="newrequest">
+  <tm:request tm:type="%s" tm:desc="%s" tm:target="" tm:cts_project="">
+    <tm:task tm:owner="%s"/>
+  </tm:request>
+</tm:root>`, reqType, escapeXMLAttr(opts.Description), owner)
+	newQuery := map[string][]string{}
+	if opts.TransportLayer != "" {
+		newQuery["transportLayer"] = []string{opts.TransportLayer}
+	}
+	resp2, err2 := c.transport.Request(ctx, "/sap/bc/adt/cts/transportrequests", &RequestOptions{
+		Method:      http.MethodPost,
+		Query:       newQuery,
+		Body:        []byte(newBody),
+		ContentType: acceptTransportOrganizerV1,
+		Accept:      acceptTransportOrganizerV1,
+	})
+	if err2 != nil {
+		return "", fmt.Errorf("creating transport: /cts/transports failed (%v); /cts/transportrequests fallback failed (%w)", err, err2)
+	}
+	return parseCreateTransportResponse(resp2.Body)
 }
 
 // parseCreateTransportResponse extracts the transport number from the XML response.
