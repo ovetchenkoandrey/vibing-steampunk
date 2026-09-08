@@ -1336,7 +1336,7 @@ func generateTableDDL(opts CreateTableOptions) string {
 
 	// Annotations - must match SAP's expected format
 	sb.WriteString(fmt.Sprintf("@EndUserText.label : '%s'\n", escapeQuote(opts.Description)))
-	sb.WriteString("@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE\n")
+	sb.WriteString("@AbapCatalog.enhancementCategory : #NOT_EXTENSIBLE\n")
 	sb.WriteString(fmt.Sprintf("@AbapCatalog.tableCategory : #%s\n", opts.TableCategory))
 	sb.WriteString(fmt.Sprintf("@AbapCatalog.deliveryClass : #%s\n", opts.DeliveryClass))
 	sb.WriteString("@AbapCatalog.dataMaintenance : #ALLOWED\n")
