@@ -279,7 +279,20 @@ func (s *Server) handleCreateTransport(ctx context.Context, request mcp.CallTool
 	}
 
 	transportLayer, _ := request.GetArguments()["transport_layer"].(string)
-	transportType, _ := request.GetArguments()["type"].(string)
+	// NOTE: in hyperfocused mode `type` is the route selector ("create_transport"),
+	// so the transport request type must come from a distinct key. Accept the aliases
+	// transport_type / req_type / trfunction; `type` is only honoured when it is not
+	// the route selector itself. Values: "K"/"workbench" (default) or "W"/"customizing".
+	transportType, _ := request.GetArguments()["transport_type"].(string)
+	if transportType == "" {
+		if v, _ := request.GetArguments()["req_type"].(string); v != "" {
+			transportType = v
+		} else if v, _ := request.GetArguments()["trfunction"].(string); v != "" {
+			transportType = v
+		} else if v, _ := request.GetArguments()["type"].(string); v != "" && v != "create_transport" {
+			transportType = v
+		}
+	}
 
 	opts := adt.CreateTransportOptions{
 		Description:    description,
