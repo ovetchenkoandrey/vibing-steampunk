@@ -346,3 +346,10 @@ success, oracle disagreed) / SILENT (errored but a change happened).
   first LIAR was our oracle (case-sensitive `source_has` vs upper-cased ADT source); oracle fixed.
 - **LIAR count after oracle fix: 0.** On the write path the tool does not claim false success.
 - Oracle/tool note: ADT free SQL (`query SQL`) is whitespace-sensitive — `X = 'Y'` works, `X='Y'` → 400.
+
+## Transports on 7.52 — create/delete resolved (2026-09-08)
+
+- **delete_transport WORKS** via the tool's ADT path (`system delete_transport`). Verified: created COEK900408, deleted it, E070 row gone. (Never releasing — per policy.)
+- **create_transport via ADT is a dead end on 7.5x.** Read the standard handler `CL_CTS_ADT_TM_REST_RES_CONT->post`: it reads the action from URI attribute `traction` (not the body), and its CASE only handles `new_task` (add task to an existing request), `consistency_checks`, and `release_jobs` — there is **no create-request branch**. The tool sends `tm:useraction="newrequest"` in the body, so the handler reads an empty action → 400 "user action  is not supported". No body/query variant can fix it; the endpoint simply cannot create a request on this release.
+- **Working create** = classic CTS FM `TR_INSERT_REQUEST_WITH_TASKS` (all releases). It is not remote-enabled (gateway RFC refuses; the generic WS RFC caller cast-errors on its structured export), so it is called from a tiny local helper report `ZVSP_TR_CREATE` (embedded/abap) run via `debug RUN_REPORT`; the new TRKORR comes back in the spool. Verified end-to-end on 7.52.
+- Follow-up (not done): wire the Go `handleCreateTransport` to run the helper and parse the TRKORR instead of the ADT POST, and pass description/type as parameters (helper currently uses a fixed description). Delete already works as-is.
