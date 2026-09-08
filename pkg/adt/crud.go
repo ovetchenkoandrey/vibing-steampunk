@@ -408,6 +408,20 @@ func (c *Client) objectExistsByURL(ctx context.Context, objectURL string) (bool,
 	return false, err
 }
 
+// isAlreadyExistsError reports whether a CreateObject failure is SAP's
+// "resource already exists" (HTTP 405, ExceptionResourceAlreadyExists).
+// This is the one create failure that must never trigger compensating
+// cleanup: the object pre-existed the request, SAP created nothing for
+// us, and deleting it would destroy the caller's existing object.
+func isAlreadyExistsError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "already exist") ||
+		strings.Contains(err.Error(), "ExceptionResourceAlreadyExists")
+}
+
 // reconcileFailedCreate handles the post-failure recovery sequence for
 // CreateObject. If the original error came from a request that landed
 // before SAP committed anything (404 on probe), it returns the original
@@ -422,6 +436,14 @@ func (c *Client) objectExistsByURL(ctx context.Context, objectURL string) (bool,
 // returned PartialCreateError. Manual recovery hints are only added
 // when our best-effort attempt could not finish.
 func (c *Client) reconcileFailedCreate(ctx context.Context, opts CreateObjectOptions, createErr error) error {
+	// An "already exists" failure means the object pre-existed this request;
+	// SAP persisted nothing for us. The existence probe below would see the
+	// caller's own object and the cleanup would DELETE it — silent data loss.
+	// Verified on 7.52: create-over-existing removed the existing class.
+	if isAlreadyExistsError(createErr) {
+		return createErr
+	}
+
 	objectURL := GetObjectURL(opts.ObjectType, opts.Name, opts.ParentName)
 	if objectURL == "" {
 		// Object type we cannot URL-encode → no probe possible.
